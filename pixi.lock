@@ -61,7 +61,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/llvm-openmp-23.1.2-h7148c6a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/llvm-tools-23-23.1.2-h7399f5f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/llvm-tools-23.1.2-h7148c6a_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/llvmdev-23.1.2-h7399f5f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ninja-1.13.2-h171cf75_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.4-h781a0a9_0.conda
@@ -96,7 +95,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/libexpat-2.8.5-hac47afa_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libffi-3.7.0-h3d046cb_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libiconv-1.18-hc1393d2_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/win-64/libllvm-c23-23.1.2-h830ff33_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libllvm23-23.1.2-h830ff33_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/liblzma-5.8.3-hfd05255_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libmpdec-4.0.0-hfd05255_2.conda
@@ -112,7 +110,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/lld-23.1.2-he13e66b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/llvm-openmp-23.1.2-h49e36cd_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/llvm-tools-23.1.2-he5be12e_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/win-64/llvmdev-23.1.2-h830ff33_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/ninja-1.13.2-h477610d_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/openssl-3.6.4-hf411b9b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.21.0-pyhcf101f3_0.conda
@@ -764,21 +761,6 @@ packages:
   license: LGPL-2.1-only
   size: 694899
   timestamp: 1787033851701
-- conda: https://conda.anaconda.org/conda-forge/win-64/libllvm-c23-23.1.2-h830ff33_0.conda
-  sha256: 4ccceddb3ce5b664295c1ac0f4feacb407aaaee89b5dcb0036605da9ec42980d
-  md5: 23db4f5952de0dd6e784fc4a8aa51d5f
-  depends:
-  - libzlib >=1.3.2,<2.0a0
-  - ucrt >=10.0.20348.0
-  - vc >=14.3,<15
-  - vc14_runtime >=14.44.35208
-  - zstd >=1.5.7,<1.6.0a0
-  constrains:
-  - llvmdev 23.1.2
-  license: Apache-2.0 WITH LLVM-exception
-  license_family: Apache
-  size: 28381768
-  timestamp: 1790162123895
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libllvm23-23.1.2-h474f4eb_0.conda
   sha256: 253a11a58756a3584c72c625752fb6ccf0a8885815f3e911f05731cfc24ea0ed
   md5: 154523853696fddee6bd98ddf9c4a2d3
@@ -1242,47 +1224,6 @@ packages:
   license_family: Apache
   size: 25454383
   timestamp: 1790170841255
-- conda: https://conda.anaconda.org/conda-forge/linux-64/llvmdev-23.1.2-h7399f5f_0.conda
-  sha256: 4f317c5e75f2072fd51c61de0b5d02043edec822aaf942d5272907000a3d5200
-  md5: eb040dca97227e34521de7d11e262712
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libgcc >=15
-  - libllvm23 23.1.2 h474f4eb_0
-  - libstdcxx >=15
-  - libzlib >=1.3.2,<2.0a0
-  - llvm-tools 23.1.2 h7148c6a_0
-  - zstd >=1.5.7,<1.6.0a0
-  constrains:
-  - clang       23.1.2
-  - clang-tools 23.1.2
-  - llvm        23.1.2
-  - llvm-tools  23.1.2
-  license: Apache-2.0 WITH LLVM-exception
-  license_family: Apache
-  size: 63317452
-  timestamp: 1790170986522
-- conda: https://conda.anaconda.org/conda-forge/win-64/llvmdev-23.1.2-h830ff33_0.conda
-  sha256: 0a7653010f49ce3ab1bea4d3d76e6c3688c16444bc48316a3a6cb8bf3a12dbfb
-  md5: 2b68cd60f7c4342db3665a0155fabbfd
-  depends:
-  - libllvm-c23 23.1.2 h830ff33_0
-  - libllvm23 23.1.2 h830ff33_0
-  - libzlib >=1.3.2,<2.0a0
-  - llvm-tools 23.1.2 he5be12e_0
-  - ucrt >=10.0.20348.0
-  - vc >=14.3,<15
-  - vc14_runtime >=14.44.35208
-  - zstd >=1.5.7,<1.6.0a0
-  constrains:
-  - clang       23.1.2
-  - clang-tools 23.1.2
-  - llvm        23.1.2
-  - llvm-tools  23.1.2
-  license: Apache-2.0 WITH LLVM-exception
-  license_family: Apache
-  size: 110674914
-  timestamp: 1790162858842
 - conda: https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
   sha256: 5d46557214ed184381dafe835b7c94a474a1c3b307a08a250b1ea4779b44ffb3
   md5: ee6c0cd80a60961a1f48aa3e0b91f986
