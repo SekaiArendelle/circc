@@ -1,4 +1,6 @@
 .deps/
 .pixi/
+__pycache__/
+*.py[cod]
 /build/
 /out/

@@ -25,18 +25,17 @@ cache enables Clang, MLIR, CIR, assertions, the host target, and sccache. Pixi's
 LLD is used as the linker, but the LLD subproject is not built.
 
 ```console
-pixi run fetch-llvm
-pixi run configure
 pixi run build
 ```
 
 The pinned LLVM checkout is stored in `.deps/llvm-project` and the build tree
-in `build/llvm`. Both are intentionally ignored by Git. The resulting program
-is in `build/llvm/bin`.
+in `build`. Both are intentionally ignored by Git. The resulting program is in
+`build/bin`.
 
-`fetch-llvm` is intentionally a one-time command. To reuse an existing LLVM
-checkout, place the `llvmorg-23.1.2` tree at `.deps/llvm-project` before running
-`configure`.
+The tasks form a dependency chain, so `pixi run build` fetches and configures
+LLVM when needed. The `fetch-llvm` and `configure` stages can also be run
+individually. To reuse an existing LLVM checkout, place the `llvmorg-23.1.2`
+tree at `.deps/llvm-project` before running any of the tasks.
 
 ## Layout
 

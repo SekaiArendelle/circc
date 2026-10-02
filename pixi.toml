@@ -21,6 +21,6 @@ pyyaml = ">=6,<7"
 pygments = ">=2.19,<3"
 
 [tasks]
-fetch-llvm = "git clone --filter=blob:none --depth 1 --branch llvmorg-23.1.2 https://github.com/llvm/llvm-project.git .deps/llvm-project"
-configure = "cmake -G Ninja -S .deps/llvm-project/llvm -B build/llvm -C cmake/caches/LLVM.cmake"
-build = "cmake --build build/llvm --target circc"
+fetch-llvm = "python scripts/fetch_llvm.py"
+configure = { cmd = "cmake -G Ninja -S .deps/llvm-project/llvm -B build -C cmake/caches/LLVM.cmake", depends-on = ["fetch-llvm"], inputs = ["pixi.toml", "pixi.lock", "scripts/fetch_llvm.py", "CMakeLists.txt", "cmake/**/*.cmake"], outputs = ["build/CMakeCache.txt", "build/build.ninja"] }
+build = { cmd = "cmake --build build --target circc", depends-on = ["configure"] }

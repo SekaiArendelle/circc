@@ -33,7 +33,7 @@ build because packaged LLVM distributions do not include CIR.
 | `cmake/toolchains/Clang.cmake` | Pixi Clang toolchain selection |
 | `pixi.toml` / `pixi.lock` | Pinned tools, platforms, and tasks |
 | `.deps/llvm-project/` | Ignored LLVM 23.1.2 source checkout |
-| `build/llvm/` | Ignored LLVM and `circc` build tree |
+| `build/` | Ignored LLVM and `circc` build tree |
 
 Read [README.md](./README.md) before changing the build setup.
 
@@ -94,14 +94,14 @@ pixi run build
 Smoke-check the current executable:
 
 ```console
-pixi run build/llvm/bin/circc --help
+pixi run build/bin/circc --help
 ```
 
 After changing `cmake/caches/LLVM.cmake`, remember that cache entries without
 `FORCE` may retain their old values. Use a fresh configure when required:
 
 ```console
-pixi run cmake --fresh -G Ninja -S .deps/llvm-project/llvm -B build/llvm -C cmake/caches/LLVM.cmake
+pixi run cmake --fresh -G Ninja -S .deps/llvm-project/llvm -B build -C cmake/caches/LLVM.cmake
 ```
 
 Formatting examples:
