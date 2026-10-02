@@ -1,0 +1,20 @@
+if(NOT DEFINED ENV{CONDA_PREFIX})
+  message(FATAL_ERROR "Clang.cmake must be used from an activated Pixi environment")
+endif()
+
+if(CMAKE_HOST_WIN32)
+  set(CIRCC_TOOLCHAIN_BIN "$ENV{CONDA_PREFIX}/Library/bin")
+  set(CIRCC_CLANG "${CIRCC_TOOLCHAIN_BIN}/clang.exe")
+  set(CIRCC_CLANGXX "${CIRCC_TOOLCHAIN_BIN}/clang++.exe")
+else()
+  set(CIRCC_TOOLCHAIN_BIN "$ENV{CONDA_PREFIX}/bin")
+  set(CIRCC_CLANG "${CIRCC_TOOLCHAIN_BIN}/clang")
+  set(CIRCC_CLANGXX "${CIRCC_TOOLCHAIN_BIN}/clang++")
+endif()
+
+if(NOT EXISTS "${CIRCC_CLANG}" OR NOT EXISTS "${CIRCC_CLANGXX}")
+  message(FATAL_ERROR "Pinned Pixi Clang toolchain was not found in ${CIRCC_TOOLCHAIN_BIN}")
+endif()
+
+set(CMAKE_C_COMPILER "${CIRCC_CLANG}" CACHE FILEPATH "" FORCE)
+set(CMAKE_CXX_COMPILER "${CIRCC_CLANGXX}" CACHE FILEPATH "" FORCE)
