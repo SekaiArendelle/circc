@@ -45,3 +45,9 @@ cmake/caches/LLVM.cmake  CIR-enabled LLVM configuration
 tools/circc/circc.cpp    command-line entry point
 pixi.toml                pinned tools and common tasks
 ```
+
+## Contributing
+
+Development workflow and coding conventions are documented in
+[AGENTS.md](./AGENTS.md). Human-facing contribution and commit-message policy
+is in [CONTRIBUTING.md](./CONTRIBUTING.md).
