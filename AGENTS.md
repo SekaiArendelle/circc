@@ -97,6 +97,12 @@ Smoke-check the current executable:
 pixi run build/bin/circc --help
 ```
 
+Run the `circc` regression tests:
+
+```console
+pixi run test
+```
+
 After changing `cmake/caches/LLVM.cmake`, remember that cache entries without
 `FORCE` may retain their old values. Use a fresh configure when required:
 
@@ -128,6 +134,9 @@ changed behavior and document their command here.
   configuration is intentionally changed and justified.
 - Prefer LLVM support types and error facilities where they integrate with
   LLVM/CIR APIs; do not add parallel abstractions without a concrete need.
+- Use lambdas only as anonymous, local callbacks at their call site. If a
+  callable needs a name or reuse, define a regular function instead of storing
+  a lambda in a named variable.
 - Keep public interfaces small and document non-obvious ownership, lifetime,
   and IR invariants.
 - Add tests with behavior changes. Translation work should eventually cover

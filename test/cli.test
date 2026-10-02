@@ -1,0 +1,45 @@
+# RUN: %circc help | FileCheck %s --check-prefix=TOP
+# RUN: %circc --help | FileCheck %s --check-prefix=TOP
+# RUN: %circc help translate | FileCheck %s --check-prefix=TRANSLATE
+# RUN: %circc translate --help | FileCheck %s --check-prefix=TRANSLATE
+# RUN: %circc version | FileCheck %s --check-prefix=VERSION
+# RUN: %circc --version | FileCheck %s --check-prefix=VERSION
+# RUN: not %circc 2>&1 | FileCheck %s --check-prefix=NO-COMMAND
+# RUN: not %circc help unknown 2>&1 | FileCheck %s --check-prefix=UNKNOWN-HELP
+# RUN: not %circc unknown 2>&1 | FileCheck %s --check-prefix=UNKNOWN-COMMAND
+# RUN: not %circc translate --input input.cir --output=output.c --language c11 2>&1 | FileCheck %s --check-prefix=NOT-IMPLEMENTED
+# RUN: not %circc translate --language=c++11 2>&1 | FileCheck %s --check-prefix=BAD-LANGUAGE
+# RUN: not %circc translate --help --input=input.cir 2>&1 | FileCheck %s --check-prefix=HELP-EXTRA
+# RUN: not %circc translate --version 2>&1 | FileCheck %s --check-prefix=UNKNOWN-VERSION
+# RUN: not %circc translate -h 2>&1 | FileCheck %s --check-prefix=UNKNOWN-SHORT
+# RUN: not %circc translate --debug 2>&1 | FileCheck %s --check-prefix=UNKNOWN-DEBUG
+# RUN: not %circc translate --input=a.cir --input=b.cir 2>&1 | FileCheck %s --check-prefix=DUPLICATE
+
+# TOP: OVERVIEW: CIR to source-code translator
+# TOP: USAGE: circc <command> [options]
+# TOP: translate  Translate CIR to source code
+# TOP: help       Display help for circc or a command
+# TOP: version    Display the circc version
+
+# TRANSLATE: OVERVIEW: Translate CIR to source code
+# TRANSLATE: USAGE: circc translate [options]
+# TRANSLATE: --input=<filename>
+# TRANSLATE: --output=<filename>
+# TRANSLATE: --language=<language>
+# VERSION: circc version 0.1.0
+# NO-COMMAND: error: no command specified
+# UNKNOWN-HELP: error: unknown help topic 'unknown'
+# UNKNOWN-HELP-NEXT: hint: run 'circc help' to list available commands
+# UNKNOWN-COMMAND: error: unknown command 'unknown'
+# UNKNOWN-COMMAND-NEXT: hint: run 'circc help' to list available commands
+# NOT-IMPLEMENTED: error: CIR translation is not implemented yet
+# BAD-LANGUAGE: error: invalid value 'c++11' for option '--language'
+# BAD-LANGUAGE-NEXT: hint: supported values: c11
+# HELP-EXTRA: error: --help does not accept other options
+# UNKNOWN-VERSION: error: unknown option '--version' for command 'translate'
+# UNKNOWN-VERSION-NEXT: hint: run 'circc help translate' to list available options
+# UNKNOWN-SHORT: error: unknown option '-h' for command 'translate'
+# UNKNOWN-SHORT-NEXT: hint: run 'circc help translate' to list available options
+# UNKNOWN-DEBUG: error: unknown option '--debug' for command 'translate'
+# UNKNOWN-DEBUG-NEXT: hint: run 'circc help translate' to list available options
+# DUPLICATE: error: option '--input' may not be specified more than once

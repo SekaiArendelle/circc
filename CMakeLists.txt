@@ -13,6 +13,11 @@ add_llvm_executable(circc
 )
 
 target_compile_features(circc PRIVATE cxx_std_23)
+target_compile_definitions(circc PRIVATE CIRCC_VERSION="${PROJECT_VERSION}")
+
+if(LLVM_INCLUDE_TESTS)
+  add_subdirectory(test)
+endif()
 
 install(TARGETS circc
   RUNTIME DESTINATION bin

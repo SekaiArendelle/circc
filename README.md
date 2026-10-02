@@ -37,6 +37,18 @@ LLVM when needed. The `fetch-llvm` and `configure` stages can also be run
 individually. To reuse an existing LLVM checkout, place the `llvmorg-23.1.2`
 tree at `.deps/llvm-project` before running any of the tasks.
 
+## Command line
+
+`circc` uses subcommands and long options. The initial `translate` interface
+targets C11; translation itself is not implemented yet.
+
+```console
+circc help
+circc help translate
+circc version
+circc translate --input=input.cir --output=output.c --language=c11
+```
+
 ## Layout
 
 ```text
