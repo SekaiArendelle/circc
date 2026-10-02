@@ -2,6 +2,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace {
@@ -33,7 +34,7 @@ llvm::cl::opt<OutputLanguage>
              llvm::cl::cat(TranslateCategory), llvm::cl::sub(TranslateCommand));
 
 void emitError(const llvm::Twine &message) {
-  llvm::errs() << "error: " << message << '\n';
+  llvm::WithColor::error() << message << '\n';
 }
 
 void emitHint(const llvm::Twine &message) {
