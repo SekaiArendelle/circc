@@ -1,7 +1,19 @@
+#include "CIRToCpp.h"
+
+#include "clang/CIR/Dialect/IR/CIRDialect.h"
+
+#include "mlir/Dialect/EmitC/IR/EmitC.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Parser/Parser.h"
+#include "mlir/Support/FileUtilities.h"
+
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -86,8 +98,39 @@ int printHelp(llvm::StringRef topic) {
 }
 
 int runTranslate() {
-  emitError("CIR translation is not implemented yet");
-  return 1;
+  mlir::DialectRegistry registry;
+  registry.insert<cir::CIRDialect, mlir::emitc::EmitCDialect>();
+  mlir::MLIRContext context(registry);
+  context.loadDialect<cir::CIRDialect, mlir::emitc::EmitCDialect>();
+
+  std::string errorMessage;
+  auto input = mlir::openInputFile(InputFilename, &errorMessage);
+  if (!input) {
+    emitError(errorMessage);
+    return 1;
+  }
+
+  llvm::SourceMgr sourceManager;
+  sourceManager.AddNewSourceBuffer(std::move(input), llvm::SMLoc());
+  mlir::OwningOpRef<mlir::ModuleOp> sourceModule =
+      mlir::parseSourceFile<mlir::ModuleOp>(sourceManager, &context);
+  if (!sourceModule)
+    return 1;
+
+  std::string translated;
+  llvm::raw_string_ostream translatedStream(translated);
+  if (mlir::failed(circc::translateToCpp(*sourceModule, translatedStream)))
+    return 1;
+  translatedStream.flush();
+
+  auto output = mlir::openOutputFile(OutputFilename, &errorMessage);
+  if (!output) {
+    emitError(errorMessage);
+    return 1;
+  }
+  output->os() << translated;
+  output->keep();
+  return 0;
 }
 
 bool markOptionSeen(llvm::StringRef option, bool &seen) {

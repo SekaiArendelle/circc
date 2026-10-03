@@ -2,6 +2,7 @@
 
 config.circc_tools_dir = "@LLVM_RUNTIME_OUTPUT_INTDIR@"
 config.circc_test_exec_root = "@CMAKE_CURRENT_BINARY_DIR@"
+config.circc_cxx_compiler = r"@CMAKE_CXX_COMPILER@"
 config.llvm_tools_dir = "@LLVM_RUNTIME_OUTPUT_INTDIR@"
 
 import lit.llvm
