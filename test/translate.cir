@@ -1,6 +1,12 @@
 // RUN: %circc translate --input=%s --output=%t.cpp
 // RUN: FileCheck %s --input-file=%t.cpp
 // RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+// RUN: %circc translate --input=%s --language=c++20 --output=%t.cpp
+// RUN: %clangxx -std=c++20 -fsyntax-only %t.cpp
+// RUN: %circc translate --input=%s --language=c++23 --output=%t.cpp
+// RUN: %clangxx -std=c++23 -fsyntax-only %t.cpp
+// RUN: %circc translate --input=%s --language=c++26 --output=%t.cpp
+// RUN: %clangxx -std=c++26 -fsyntax-only %t.cpp
 
 // CHECK: #include <stdint.h>
 // CHECK-NEXT: int32_t answer() {

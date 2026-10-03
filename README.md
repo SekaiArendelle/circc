@@ -46,8 +46,12 @@ targets the C++ source emitted by MLIR's EmitC backend.
 circc help
 circc help translate
 circc version
-circc translate --input=input.cir --output=output.cpp --language=cpp
+circc translate --input=input.cir --output=output.cpp --language=c++17
 ```
+
+`--language` accepts `c++11`, `c++14`, `c++17`, `c++20`, `c++23`, and
+`c++26`. The default is `c++17`.
+The selected standard controls C++ keyword validation during translation.
 
 ## Contributing
 

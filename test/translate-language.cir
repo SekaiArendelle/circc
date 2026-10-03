@@ -1,0 +1,16 @@
+// RUN: %circc translate --input=%s --language=c++11 --output=%t.cpp
+// RUN: %clangxx -std=c++11 -fsyntax-only %t.cpp
+// RUN: %circc translate --input=%s --language c++14 --output=%t.cpp
+// RUN: %clangxx -std=c++14 -fsyntax-only %t.cpp
+// RUN: %circc translate --input=%s --language=c++17 --output=%t.cpp
+// RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+// RUN: not %circc translate --input=%s --language=c++20 2>&1 | FileCheck %s
+// RUN: not %circc translate --input=%s --language=c++23 2>&1 | FileCheck %s
+// RUN: not %circc translate --input=%s --language=c++26 2>&1 | FileCheck %s
+
+// CHECK: error: function name is not a valid C++ identifier
+module {
+  cir.func @concept() {
+    cir.return
+  }
+}

@@ -350,13 +350,11 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
 }
 
 mlir::FailureOr<mlir::OwningOpRef<mlir::ModuleOp>>
-lowerToEmitC(mlir::ModuleOp sourceModule) {
-  // Match the C++17 standard used to compile the emitted source in the tests.
+lowerToEmitC(mlir::ModuleOp sourceModule, clang::LangStandard::Kind standard) {
   clang::LangOptions languageOptions;
   std::vector<std::string> includes;
   clang::LangOptions::setLangDefaults(languageOptions, clang::Language::CXX,
-                                      llvm::Triple(), includes,
-                                      clang::LangStandard::lang_cxx17);
+                                      llvm::Triple(), includes, standard);
   languageOptions.CXXOperatorNames = true;
   clang::IdentifierTable identifiers(languageOptions);
   mlir::OpBuilder builder(sourceModule.getContext());
@@ -385,8 +383,9 @@ lowerToEmitC(mlir::ModuleOp sourceModule) {
 } // namespace
 
 mlir::LogicalResult circc::translateToCpp(mlir::ModuleOp sourceModule,
-                                          llvm::raw_ostream &output) {
-  auto emitCModule = lowerToEmitC(sourceModule);
+                                          llvm::raw_ostream &output,
+                                          clang::LangStandard::Kind standard) {
+  auto emitCModule = lowerToEmitC(sourceModule, standard);
   if (mlir::failed(emitCModule))
     return mlir::failure();
   return mlir::emitc::translateToCpp(**emitCModule, output);

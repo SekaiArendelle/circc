@@ -19,8 +19,6 @@
 
 namespace {
 
-enum class OutputLanguage { Cpp };
-
 llvm::cl::SubCommand TranslateCommand("translate",
                                       "Translate CIR to source code");
 
@@ -38,11 +36,10 @@ llvm::cl::opt<std::string>
                    llvm::cl::cat(TranslateCategory),
                    llvm::cl::sub(TranslateCommand));
 
-llvm::cl::opt<OutputLanguage> Language(
-    "language", llvm::cl::desc("Select the output language"),
-    llvm::cl::values(clEnumValN(OutputLanguage::Cpp, "cpp", "C++ source code")),
-    llvm::cl::init(OutputLanguage::Cpp), llvm::cl::cat(TranslateCategory),
-    llvm::cl::sub(TranslateCommand));
+llvm::cl::opt<std::string>
+    Language("language", llvm::cl::desc("Select the output language"),
+             llvm::cl::value_desc("c++NN"), llvm::cl::init("c++17"),
+             llvm::cl::cat(TranslateCategory), llvm::cl::sub(TranslateCommand));
 
 void emitError(const llvm::Twine &message) {
   llvm::WithColor::error() << message << '\n';
@@ -71,7 +68,7 @@ void printTranslateHelp() {
                   "  --output=<filename>    Write source code to <filename> "
                   "(default: stdout)\n"
                   "  --language=<language>  Select the output language "
-                  "(currently: cpp)\n";
+                  "(c++11/14/17/20/23/26; default: c++17)\n";
 }
 
 int printHelp(llvm::StringRef topic) {
@@ -97,6 +94,13 @@ int printHelp(llvm::StringRef topic) {
   return 1;
 }
 
+clang::LangStandard::Kind parseOutputStandard(llvm::StringRef language) {
+  if (language != "c++11" && language != "c++14" && language != "c++17" &&
+      language != "c++20" && language != "c++23" && language != "c++26")
+    return clang::LangStandard::lang_unspecified;
+  return clang::LangStandard::getLangKind(language);
+}
+
 int runTranslate() {
   mlir::DialectRegistry registry;
   registry.insert<cir::CIRDialect, mlir::emitc::EmitCDialect>();
@@ -119,7 +123,8 @@ int runTranslate() {
 
   std::string translated;
   llvm::raw_string_ostream translatedStream(translated);
-  if (mlir::failed(circc::translateToCpp(*sourceModule, translatedStream)))
+  if (mlir::failed(circc::translateToCpp(*sourceModule, translatedStream,
+                                         parseOutputStandard(Language))))
     return 1;
   translatedStream.flush();
 
@@ -176,10 +181,11 @@ bool validateTranslateArguments(int argc, char **argv) {
         emitError(llvm::Twine("option '") + option + "' requires a value");
         return false;
       }
-      if (option == "--language" && value != "cpp") {
+      if (option == "--language" &&
+          parseOutputStandard(value) == clang::LangStandard::lang_unspecified) {
         emitError(llvm::Twine("invalid value '") + value +
                   "' for option '--language'");
-        emitHint("supported values: cpp");
+        emitHint("supported values: c++11, c++14, c++17, c++20, c++23, c++26");
         return false;
       }
       continue;
