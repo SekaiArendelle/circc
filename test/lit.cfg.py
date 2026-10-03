@@ -7,7 +7,8 @@ from lit.llvm.subst import ToolSubst
 
 config.name = "circc"
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
-config.suffixes = [".test"]
+config.suffixes = [".test", ".cir"]
+config.excludes = ["Inputs"]
 config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = config.circc_test_exec_root
 

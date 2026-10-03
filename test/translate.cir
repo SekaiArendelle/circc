@@ -1,0 +1,33 @@
+// RUN: %circc translate --input=%s --output=%t.cpp
+// RUN: FileCheck %s --input-file=%t.cpp
+// RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+
+// CHECK: #include <stdint.h>
+// CHECK-NEXT: int32_t answer() {
+// CHECK-NEXT:   int32_t v1;
+// CHECK-NEXT:   int32_t* v2 = &v1;
+// CHECK-NEXT:   int32_t v3 = 42;
+// CHECK-NEXT:   v1 = v3;
+// CHECK-NEXT:   int32_t v4 = v1;
+// CHECK-NEXT:   return v4;
+// CHECK-NEXT: }
+// CHECK-NEXT: uint64_t identity(uint64_t v1) {
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+!s32i = !cir.int<s, 32>
+!u64i = !cir.int<u, 64>
+
+module {
+  cir.func @answer() -> !s32i {
+    %slot = cir.alloca "answer" align(4) : !cir.ptr<!s32i>
+    %constant = cir.const #cir.int<42> : !s32i
+    cir.store %constant, %slot : !s32i, !cir.ptr<!s32i>
+    %value = cir.load %slot : !cir.ptr<!s32i>, !s32i
+    cir.return %value : !s32i
+  }
+
+  cir.func @identity(%argument: !u64i) -> !u64i {
+    cir.return %argument : !u64i
+  }
+}
