@@ -37,6 +37,18 @@ LLVM when needed. The `fetch-llvm` and `configure` stages can also be run
 individually. To reuse an existing LLVM checkout, place the `llvmorg-23.1.2`
 tree at `.deps/llvm-project` before running any of the tasks.
 
+To build a Clang that can generate CIR, use the same LLVM checkout and build
+tree. The existing configuration enables CIR and uses sccache for both C and
+C++ compilation:
+
+```console
+pixi run build-clang
+pixi run clang-cir -fclangir -emit-cir -S input.c -o input.cir
+```
+
+`clang-cir` runs the locally built compiler in the Pixi environment. The
+packaged Pixi Clang remains the bootstrap compiler used to build the project.
+
 ## Command line
 
 `circc` uses subcommands and long options. The initial `translate` interface
