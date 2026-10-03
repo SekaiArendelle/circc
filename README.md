@@ -1,8 +1,8 @@
 # circc
 
 `circc` is a work-in-progress CIR-to-C translator based on LLVM/ClangIR
-23.1.2. The repository currently contains only its build and command-line
-shell; no translation is implemented yet.
+23.1.2. The initial translator lowers a deliberately small CIR subset through MLIR's
+EmitC dialect and emits C++ source.
 
 ## Toolchain
 
@@ -40,21 +40,13 @@ tree at `.deps/llvm-project` before running any of the tasks.
 ## Command line
 
 `circc` uses subcommands and long options. The initial `translate` interface
-targets C11; translation itself is not implemented yet.
+targets the C++ source emitted by MLIR's EmitC backend.
 
 ```console
 circc help
 circc help translate
 circc version
-circc translate --input=input.cir --output=output.c --language=c11
-```
-
-## Layout
-
-```text
-cmake/caches/LLVM.cmake  CIR-enabled LLVM configuration
-tools/circc/circc.cpp    command-line entry point
-pixi.toml                pinned tools and common tasks
+circc translate --input=input.cir --output=output.cpp --language=cpp
 ```
 
 ## Contributing

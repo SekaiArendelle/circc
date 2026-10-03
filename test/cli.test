@@ -7,8 +7,7 @@
 # RUN: not %circc 2>&1 | FileCheck %s --check-prefix=NO-COMMAND
 # RUN: not %circc help unknown 2>&1 | FileCheck %s --check-prefix=UNKNOWN-HELP
 # RUN: not %circc unknown 2>&1 | FileCheck %s --check-prefix=UNKNOWN-COMMAND
-# RUN: not %circc translate --input input.cir --output=output.c --language c11 2>&1 | FileCheck %s --check-prefix=NOT-IMPLEMENTED
-# RUN: not %circc translate --language=c++11 2>&1 | FileCheck %s --check-prefix=BAD-LANGUAGE
+# RUN: not %circc translate --language=c11 2>&1 | FileCheck %s --check-prefix=BAD-LANGUAGE
 # RUN: not %circc translate --help --input=input.cir 2>&1 | FileCheck %s --check-prefix=HELP-EXTRA
 # RUN: not %circc translate --version 2>&1 | FileCheck %s --check-prefix=UNKNOWN-VERSION
 # RUN: not %circc translate -h 2>&1 | FileCheck %s --check-prefix=UNKNOWN-SHORT
@@ -32,9 +31,8 @@
 # UNKNOWN-HELP-NEXT: hint: run 'circc help' to list available commands
 # UNKNOWN-COMMAND: error: unknown command 'unknown'
 # UNKNOWN-COMMAND-NEXT: hint: run 'circc help' to list available commands
-# NOT-IMPLEMENTED: error: CIR translation is not implemented yet
-# BAD-LANGUAGE: error: invalid value 'c++11' for option '--language'
-# BAD-LANGUAGE-NEXT: hint: supported values: c11
+# BAD-LANGUAGE: error: invalid value 'c11' for option '--language'
+# BAD-LANGUAGE-NEXT: hint: supported values: cpp
 # HELP-EXTRA: error: --help does not accept other options
 # UNKNOWN-VERSION: error: unknown option '--version' for command 'translate'
 # UNKNOWN-VERSION-NEXT: hint: run 'circc help translate' to list available options

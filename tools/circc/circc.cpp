@@ -1,13 +1,25 @@
+#include "CIRToCpp.h"
+
+#include "clang/CIR/Dialect/IR/CIRDialect.h"
+
+#include "mlir/Dialect/EmitC/IR/EmitC.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Parser/Parser.h"
+#include "mlir/Support/FileUtilities.h"
+
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace {
 
-enum class OutputLanguage { C11 };
+enum class OutputLanguage { Cpp };
 
 llvm::cl::SubCommand TranslateCommand("translate",
                                       "Translate CIR to source code");
@@ -26,12 +38,11 @@ llvm::cl::opt<std::string>
                    llvm::cl::cat(TranslateCategory),
                    llvm::cl::sub(TranslateCommand));
 
-llvm::cl::opt<OutputLanguage>
-    Language("language", llvm::cl::desc("Select the output language"),
-             llvm::cl::values(clEnumValN(OutputLanguage::C11, "c11",
-                                         "ISO C11 source code")),
-             llvm::cl::init(OutputLanguage::C11),
-             llvm::cl::cat(TranslateCategory), llvm::cl::sub(TranslateCommand));
+llvm::cl::opt<OutputLanguage> Language(
+    "language", llvm::cl::desc("Select the output language"),
+    llvm::cl::values(clEnumValN(OutputLanguage::Cpp, "cpp", "C++ source code")),
+    llvm::cl::init(OutputLanguage::Cpp), llvm::cl::cat(TranslateCategory),
+    llvm::cl::sub(TranslateCommand));
 
 void emitError(const llvm::Twine &message) {
   llvm::WithColor::error() << message << '\n';
@@ -60,7 +71,7 @@ void printTranslateHelp() {
                   "  --output=<filename>    Write source code to <filename> "
                   "(default: stdout)\n"
                   "  --language=<language>  Select the output language "
-                  "(currently: c11)\n";
+                  "(currently: cpp)\n";
 }
 
 int printHelp(llvm::StringRef topic) {
@@ -87,8 +98,38 @@ int printHelp(llvm::StringRef topic) {
 }
 
 int runTranslate() {
-  emitError("CIR translation is not implemented yet");
-  return 1;
+  mlir::DialectRegistry registry;
+  registry.insert<cir::CIRDialect, mlir::emitc::EmitCDialect>();
+  mlir::MLIRContext context(registry);
+
+  std::string errorMessage;
+  auto input = mlir::openInputFile(InputFilename, &errorMessage);
+  if (!input) {
+    emitError(errorMessage);
+    return 1;
+  }
+
+  llvm::SourceMgr sourceManager;
+  sourceManager.AddNewSourceBuffer(std::move(input), llvm::SMLoc());
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceFile<mlir::ModuleOp>(sourceManager, &context);
+  if (!module)
+    return 1;
+
+  std::string translated;
+  llvm::raw_string_ostream translatedStream(translated);
+  if (mlir::failed(circc::translateToCpp(*module, translatedStream)))
+    return 1;
+  translatedStream.flush();
+
+  auto output = mlir::openOutputFile(OutputFilename, &errorMessage);
+  if (!output) {
+    emitError(errorMessage);
+    return 1;
+  }
+  output->os() << translated;
+  output->keep();
+  return 0;
 }
 
 bool markOptionSeen(llvm::StringRef option, bool &seen) {
@@ -134,10 +175,10 @@ bool validateTranslateArguments(int argc, char **argv) {
         emitError(llvm::Twine("option '") + option + "' requires a value");
         return false;
       }
-      if (option == "--language" && value != "c11") {
+      if (option == "--language" && value != "cpp") {
         emitError(llvm::Twine("invalid value '") + value +
                   "' for option '--language'");
-        emitHint("supported values: c11");
+        emitHint("supported values: cpp");
         return false;
       }
       continue;
