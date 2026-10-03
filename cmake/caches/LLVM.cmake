@@ -9,6 +9,15 @@ get_filename_component(CIRCC_SOURCE_DIR
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 include("${CMAKE_CURRENT_LIST_DIR}/../toolchains/Clang.cmake")
 
+# Resolve optional support libraries (zlib, libxml2, libedit) from the pinned
+# Pixi environment instead of the host system or the macOS SDK.
+if(CMAKE_HOST_WIN32)
+  set(CIRCC_ENV_PREFIX "$ENV{CONDA_PREFIX}/Library")
+else()
+  set(CIRCC_ENV_PREFIX "$ENV{CONDA_PREFIX}")
+endif()
+set(CMAKE_PREFIX_PATH "${CIRCC_ENV_PREFIX}" CACHE PATH "")
+
 if(CMAKE_HOST_WIN32)
   set(CIRCC_PYTHON "$ENV{CONDA_PREFIX}/python.exe")
 else()
