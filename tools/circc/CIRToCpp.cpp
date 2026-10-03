@@ -15,6 +15,10 @@
 namespace {
 
 class CIRToEmitC {
+  mlir::OpBuilder builder;
+  llvm::DenseMap<mlir::Value, mlir::Value> values;
+  llvm::DenseMap<mlir::Value, mlir::Value> localObjects;
+
 public:
   explicit CIRToEmitC(mlir::MLIRContext *context) : builder(context) {}
 
@@ -43,10 +47,6 @@ public:
   }
 
 private:
-  mlir::OpBuilder builder;
-  llvm::DenseMap<mlir::Value, mlir::Value> values;
-  llvm::DenseMap<mlir::Value, mlir::Value> localObjects;
-
   static bool isCppIdentifier(llvm::StringRef name) {
     if (name.empty() || !(llvm::isAlpha(name.front()) || name.front() == '_'))
       return false;
