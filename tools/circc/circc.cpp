@@ -7,7 +7,7 @@
 
 namespace {
 
-enum class OutputLanguage { C11 };
+enum class OutputLanguage { Cpp };
 
 llvm::cl::SubCommand TranslateCommand("translate",
                                       "Translate CIR to source code");
@@ -26,12 +26,11 @@ llvm::cl::opt<std::string>
                    llvm::cl::cat(TranslateCategory),
                    llvm::cl::sub(TranslateCommand));
 
-llvm::cl::opt<OutputLanguage>
-    Language("language", llvm::cl::desc("Select the output language"),
-             llvm::cl::values(clEnumValN(OutputLanguage::C11, "c11",
-                                         "ISO C11 source code")),
-             llvm::cl::init(OutputLanguage::C11),
-             llvm::cl::cat(TranslateCategory), llvm::cl::sub(TranslateCommand));
+llvm::cl::opt<OutputLanguage> Language(
+    "language", llvm::cl::desc("Select the output language"),
+    llvm::cl::values(clEnumValN(OutputLanguage::Cpp, "cpp", "C++ source code")),
+    llvm::cl::init(OutputLanguage::Cpp), llvm::cl::cat(TranslateCategory),
+    llvm::cl::sub(TranslateCommand));
 
 void emitError(const llvm::Twine &message) {
   llvm::WithColor::error() << message << '\n';
@@ -60,7 +59,7 @@ void printTranslateHelp() {
                   "  --output=<filename>    Write source code to <filename> "
                   "(default: stdout)\n"
                   "  --language=<language>  Select the output language "
-                  "(currently: c11)\n";
+                  "(currently: cpp)\n";
 }
 
 int printHelp(llvm::StringRef topic) {
@@ -134,10 +133,10 @@ bool validateTranslateArguments(int argc, char **argv) {
         emitError(llvm::Twine("option '") + option + "' requires a value");
         return false;
       }
-      if (option == "--language" && value != "c11") {
+      if (option == "--language" && value != "cpp") {
         emitError(llvm::Twine("invalid value '") + value +
                   "' for option '--language'");
-        emitHint("supported values: c11");
+        emitHint("supported values: cpp");
         return false;
       }
       continue;

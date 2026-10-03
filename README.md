@@ -40,13 +40,13 @@ tree at `.deps/llvm-project` before running any of the tasks.
 ## Command line
 
 `circc` uses subcommands and long options. The initial `translate` interface
-targets C11; translation itself is not implemented yet.
+targets C++; translation itself is not implemented yet.
 
 ```console
 circc help
 circc help translate
 circc version
-circc translate --input=input.cir --output=output.c --language=c11
+circc translate --input=input.cir --output=output.cpp --language=cpp
 ```
 
 ## Layout
