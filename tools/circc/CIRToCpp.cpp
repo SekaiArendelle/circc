@@ -67,6 +67,16 @@ private:
     return 0;
   }
 
+  static bool
+  hasNonEmptyDictionaries(std::optional<mlir::ArrayAttr> attributes) {
+    if (!attributes)
+      return false;
+    return llvm::any_of(*attributes, [](mlir::Attribute attribute) {
+      auto dictionary = mlir::dyn_cast<mlir::DictionaryAttr>(attribute);
+      return !dictionary || !dictionary.empty();
+    });
+  }
+
   void createInclude(mlir::Location location, llvm::StringRef name) {
     mlir::OperationState state(location,
                                mlir::emitc::IncludeOp::getOperationName());
@@ -269,10 +279,11 @@ private:
       return function.emitError("only external function linkage is supported");
     if (function.getGlobalVisibility() != cir::VisibilityKind::Default ||
         function.getDsoLocal() || function.getSymVisibility() ||
-        function.getComdat() || function.getArgAttrs() ||
-        function.getResAttrs() || function.getSideEffect() ||
-        function.getGlobalCtorPriority() || function.getGlobalDtorPriority() ||
-        function.getFuncInfo())
+        function.getComdat() ||
+        hasNonEmptyDictionaries(function.getArgAttrs()) ||
+        hasNonEmptyDictionaries(function.getResAttrs()) ||
+        function.getSideEffect() || function.getGlobalCtorPriority() ||
+        function.getGlobalDtorPriority() || function.getFuncInfo())
       return function.emitError("function has visibility, ABI, or metadata "
                                 "attributes that are not yet supported");
     if (function.getBuiltin() || function.getCoroutine() ||

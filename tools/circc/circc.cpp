@@ -101,6 +101,7 @@ int runTranslate() {
   mlir::DialectRegistry registry;
   registry.insert<cir::CIRDialect, mlir::emitc::EmitCDialect>();
   mlir::MLIRContext context(registry);
+  context.loadDialect<cir::CIRDialect, mlir::emitc::EmitCDialect>();
 
   std::string errorMessage;
   auto input = mlir::openInputFile(InputFilename, &errorMessage);

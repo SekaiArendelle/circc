@@ -1,3 +1,6 @@
+!s32i = !cir.int<s, 32>
+!u64i = !cir.int<u, 64>
+
 module {
   cir.func @answer() -> !s32i {
     %slot = cir.alloca "answer" align(4) : !cir.ptr<!s32i>
@@ -10,6 +13,4 @@ module {
   cir.func @identity(%argument: !u64i) -> !u64i {
     cir.return %argument : !u64i
   }
-
-  cir.func @notify()
 }

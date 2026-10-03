@@ -11,6 +11,10 @@ config.suffixes = [".test"]
 config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = config.circc_test_exec_root
 
+llvm_config.with_environment(
+    "PATH", os.path.dirname(config.circc_cxx_compiler), append_path=True
+)
+
 llvm_config.add_tool_substitutions(
     [
         ToolSubst("FileCheck"),
@@ -19,3 +23,5 @@ llvm_config.add_tool_substitutions(
     ],
     [config.llvm_tools_dir],
 )
+
+config.substitutions.append(("%clangxx", config.circc_cxx_compiler))
