@@ -20,6 +20,9 @@ python = "3.13.*"
 pyyaml = ">=6,<7"
 pygments = ">=2.19,<3"
 
+[target.osx-arm64.dependencies]
+libedit = ">=3.1,<4"
+
 [tasks]
 fetch-llvm = "python scripts/fetch_llvm.py"
 configure = { cmd = "cmake -G Ninja -S .deps/llvm-project/llvm -B build -C cmake/caches/LLVM.cmake", depends-on = ["fetch-llvm"], inputs = ["pixi.toml", "pixi.lock", "scripts/fetch_llvm.py", "CMakeLists.txt", "cmake/**/*.cmake", "test/CMakeLists.txt", "test/lit.site.cfg.py.in"], outputs = ["build/CMakeCache.txt", "build/build.ninja"] }
