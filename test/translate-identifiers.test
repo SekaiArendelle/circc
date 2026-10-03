@@ -1,0 +1,13 @@
+# RUN: echo "module { cir.func @class() { cir.return } }" | not %circc translate 2>&1 | FileCheck %s --check-prefix=INVALID
+# RUN: echo "module { cir.func @and() { cir.return } }" | not %circc translate 2>&1 | FileCheck %s --check-prefix=INVALID
+# RUN: echo "module { cir.func @nullptr() { cir.return } }" | not %circc translate 2>&1 | FileCheck %s --check-prefix=INVALID
+# RUN: echo "module { cir.func private @template() }" | not %circc translate 2>&1 | FileCheck %s --check-prefix=INVALID
+# RUN: echo "module { cir.func @class_name() { cir.return } cir.func @final() { cir.return } cir.func @override() { cir.return } }" | %circc translate --output=%t.cpp
+# RUN: FileCheck %s --check-prefix=VALID --input-file=%t.cpp
+# RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+
+# INVALID: error: function name is not a valid C++ identifier
+
+# VALID: void class_name()
+# VALID: void final()
+# VALID: void override()

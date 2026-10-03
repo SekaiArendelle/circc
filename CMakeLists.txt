@@ -23,6 +23,7 @@ target_include_directories(circc PRIVATE
 )
 
 target_link_libraries(circc PRIVATE
+  clangBasic
   MLIRCIR
   MLIREmitCDialect
   MLIRIR

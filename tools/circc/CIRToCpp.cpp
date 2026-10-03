@@ -1,5 +1,7 @@
 #include "CIRToCpp.h"
 
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/CIR/Dialect/IR/CIRDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -10,15 +12,22 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/TargetParser/Triple.h"
+
+#include <string>
+#include <vector>
 
 namespace {
 
-bool isCppIdentifier(llvm::StringRef name) {
+bool isCppIdentifier(llvm::StringRef name,
+                     clang::IdentifierTable &identifiers) {
   if (name.empty() || !(llvm::isAlpha(name.front()) || name.front() == '_'))
     return false;
-  return llvm::all_of(name.drop_front(), [](char character) {
-    return llvm::isAlnum(character) || character == '_';
-  });
+  if (!llvm::all_of(name.drop_front(), [](char character) {
+        return llvm::isAlnum(character) || character == '_';
+      }))
+    return false;
+  return identifiers.get(name).getTokenID() == clang::tok::identifier;
 }
 
 uint64_t naturalAlignment(mlir::Type type) {
@@ -248,9 +257,10 @@ lowerReturn(cir::ReturnOp returnOp, mlir::OpBuilder &builder,
 }
 
 mlir::LogicalResult lowerFunction(cir::FuncOp function,
-                                  mlir::OpBuilder &builder) {
+                                  mlir::OpBuilder &builder,
+                                  clang::IdentifierTable &identifiers) {
   cir::FuncType sourceType = function.getFunctionType();
-  if (!isCppIdentifier(function.getSymName()))
+  if (!isCppIdentifier(function.getSymName(), identifiers))
     return function.emitError("function name is not a valid C++ identifier");
   if (sourceType.isVarArg() || function.getNoProto())
     return function.emitError("variadic and no-prototype functions are not "
@@ -341,6 +351,14 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
 
 mlir::FailureOr<mlir::OwningOpRef<mlir::ModuleOp>>
 lowerToEmitC(mlir::ModuleOp sourceModule) {
+  // Match the C++17 standard used to compile the emitted source in the tests.
+  clang::LangOptions languageOptions;
+  std::vector<std::string> includes;
+  clang::LangOptions::setLangDefaults(languageOptions, clang::Language::CXX,
+                                      llvm::Triple(), includes,
+                                      clang::LangStandard::lang_cxx17);
+  languageOptions.CXXOperatorNames = true;
+  clang::IdentifierTable identifiers(languageOptions);
   mlir::OpBuilder builder(sourceModule.getContext());
   mlir::OwningOpRef<mlir::ModuleOp> targetModule =
       mlir::ModuleOp::create(sourceModule.getLoc());
@@ -355,7 +373,7 @@ lowerToEmitC(mlir::ModuleOp sourceModule) {
                           "translation");
       return mlir::failure();
     }
-    if (mlir::failed(lowerFunction(function, builder)))
+    if (mlir::failed(lowerFunction(function, builder, identifiers)))
       return mlir::failure();
   }
 
