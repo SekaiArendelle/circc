@@ -13,7 +13,7 @@ class ModuleOp;
 
 namespace circc {
 
-mlir::LogicalResult translateToCpp(mlir::ModuleOp module,
+mlir::LogicalResult translateToCpp(mlir::ModuleOp sourceModule,
                                    llvm::raw_ostream &output);
 
 } // namespace circc

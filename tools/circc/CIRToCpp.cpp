@@ -359,10 +359,10 @@ private:
 
 } // namespace
 
-mlir::LogicalResult circc::translateToCpp(mlir::ModuleOp module,
+mlir::LogicalResult circc::translateToCpp(mlir::ModuleOp sourceModule,
                                           llvm::raw_ostream &output) {
-  CIRToEmitC lowering(module.getContext());
-  auto emitCModule = lowering.lower(module);
+  CIRToEmitC lowering(sourceModule.getContext());
+  auto emitCModule = lowering.lower(sourceModule);
   if (mlir::failed(emitCModule))
     return mlir::failure();
   return mlir::emitc::translateToCpp(**emitCModule, output);

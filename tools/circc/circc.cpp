@@ -112,14 +112,14 @@ int runTranslate() {
 
   llvm::SourceMgr sourceManager;
   sourceManager.AddNewSourceBuffer(std::move(input), llvm::SMLoc());
-  mlir::OwningOpRef<mlir::ModuleOp> module =
+  mlir::OwningOpRef<mlir::ModuleOp> sourceModule =
       mlir::parseSourceFile<mlir::ModuleOp>(sourceManager, &context);
-  if (!module)
+  if (!sourceModule)
     return 1;
 
   std::string translated;
   llvm::raw_string_ostream translatedStream(translated);
-  if (mlir::failed(circc::translateToCpp(*module, translatedStream)))
+  if (mlir::failed(circc::translateToCpp(*sourceModule, translatedStream)))
     return 1;
   translatedStream.flush();
 

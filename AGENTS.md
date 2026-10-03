@@ -137,6 +137,9 @@ changed behavior and document their command here.
 - Use lambdas only as anonymous, local callbacks at their call site. If a
   callable needs a name or reuse, define a regular function instead of storing
   a lambda in a named variable.
+- Avoid C++ contextual (soft) keywords such as `module`, `import`, `final`,
+  and `override` as variable or parameter names, even where they are legal
+  identifiers. Prefer descriptive names such as `sourceModule`.
 - Keep public interfaces small and document non-obvious ownership, lifetime,
   and IR invariants.
 - Add tests with behavior changes. Translation work should eventually cover
