@@ -41,12 +41,13 @@ tree at `.deps/llvm-project` before running any of the tasks.
 
 `circc` uses subcommands and long options. The initial `translate` interface
 targets the C++ source emitted by MLIR's EmitC backend.
+After building, run it through Pixi so its runtime libraries are available.
 
 ```console
-circc help
-circc help translate
-circc version
-circc translate --input=input.cir --output=output.cpp --language=c++17
+pixi run circc help
+pixi run circc help translate
+pixi run circc version
+pixi run circc translate --input=input.cir --output=output.cpp --language=c++17
 ```
 
 `--language` accepts `c++11`, `c++14`, `c++17`, `c++20`, `c++23`, and

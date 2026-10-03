@@ -94,7 +94,7 @@ pixi run build
 Smoke-check the current executable:
 
 ```console
-pixi run build/bin/circc --help
+pixi run circc --help
 ```
 
 Run the `circc` regression tests:
