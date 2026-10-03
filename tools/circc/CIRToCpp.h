@@ -1,15 +1,10 @@
 #ifndef CIRCC_TOOLS_CIRCC_CIRTOCPP_H
 #define CIRCC_TOOLS_CIRCC_CIRTOCPP_H
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LogicalResult.h"
 
-namespace llvm {
-class raw_ostream;
-}
-
-namespace mlir {
-class ModuleOp;
-}
+#include "llvm/Support/raw_ostream.h"
 
 namespace circc {
 
