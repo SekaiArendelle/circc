@@ -135,33 +135,55 @@ getLValue(mlir::Value address, mlir::Operation *context,
   return builder.create(state)->getResult(0);
 }
 
+// targetType must be the converted type of the source constant. Null pointers
+// use an opaque expression, suitable for a global initializer or a literal op.
+mlir::FailureOr<mlir::Attribute>
+convertConstantAttribute(mlir::Attribute attribute, mlir::Type targetType,
+                         mlir::Operation *context, mlir::OpBuilder &builder,
+                         llvm::StringRef description) {
+  if (auto integer = mlir::dyn_cast<cir::IntAttr>(attribute))
+    return mlir::Attribute(
+        mlir::IntegerAttr::get(targetType, integer.getValue()));
+  if (auto boolean = mlir::dyn_cast<cir::BoolAttr>(attribute))
+    return mlir::Attribute(builder.getBoolAttr(boolean.getValue()));
+  if (auto floating = mlir::dyn_cast<cir::FPAttr>(attribute)) {
+    if (!floating.getValue().isFinite()) {
+      context->emitError() << "non-finite floating-point " << description
+                           << "s are not yet supported";
+      return mlir::failure();
+    }
+    return mlir::Attribute(
+        mlir::FloatAttr::get(targetType, floating.getValue()));
+  }
+  if (auto pointer = mlir::dyn_cast<cir::ConstPtrAttr>(attribute);
+      pointer && pointer.isNullValue())
+    return mlir::Attribute(
+        mlir::emitc::OpaqueAttr::get(builder.getContext(), "nullptr"));
+  context->emitError() << "unsupported CIR " << description
+                       << " for C++ translation";
+  return mlir::failure();
+}
+
 mlir::LogicalResult
 lowerConstant(cir::ConstantOp constant, mlir::OpBuilder &builder,
               llvm::DenseMap<mlir::Value, mlir::Value> &values) {
   auto type = convertType(constant.getType(), constant, builder);
   if (mlir::failed(type))
     return mlir::failure();
+  auto value = convertConstantAttribute(constant.getValue(), *type, constant,
+                                        builder, "constant");
+  if (mlir::failed(value))
+    return mlir::failure();
 
   mlir::OperationState state(constant.getLoc(),
                              mlir::emitc::ConstantOp::getOperationName());
   state.addTypes(*type);
-  if (auto integer = constant.getValueAttr<cir::IntAttr>()) {
-    state.addAttribute("value",
-                       mlir::IntegerAttr::get(*type, integer.getValue()));
-  } else if (auto boolean = constant.getValueAttr<cir::BoolAttr>()) {
-    state.addAttribute("value", builder.getBoolAttr(boolean.getValue()));
-  } else if (auto floating = constant.getValueAttr<cir::FPAttr>()) {
-    if (!floating.getValue().isFinite())
-      return constant.emitError("non-finite floating-point constants are not "
-                                "yet supported");
-    state.addAttribute("value",
-                       mlir::FloatAttr::get(*type, floating.getValue()));
-  } else if (constant.isNullPtr()) {
+  if (auto opaque = mlir::dyn_cast<mlir::emitc::OpaqueAttr>(*value)) {
     state.name = mlir::OperationName(mlir::emitc::LiteralOp::getOperationName(),
                                      builder.getContext());
-    state.addAttribute("value", builder.getStringAttr("nullptr"));
+    state.addAttribute("value", builder.getStringAttr(opaque.getValue()));
   } else {
-    return constant.emitError("unsupported CIR constant for C++ translation");
+    state.addAttribute("value", *value);
   }
   mlir::Operation *lowered = builder.create(state);
   values[constant.getResult()] = lowered->getResult(0);
@@ -312,23 +334,11 @@ mlir::LogicalResult lowerGlobal(cir::GlobalOp global, mlir::OpBuilder &builder,
   if (global.getConstant())
     state.addAttribute("const_specifier", builder.getUnitAttr());
   if (auto initialValue = global.getInitialValue()) {
-    mlir::Attribute converted;
-    if (auto integer = mlir::dyn_cast<cir::IntAttr>(*initialValue))
-      converted = mlir::IntegerAttr::get(*type, integer.getValue());
-    else if (auto boolean = mlir::dyn_cast<cir::BoolAttr>(*initialValue))
-      converted = builder.getBoolAttr(boolean.getValue());
-    else if (auto floating = mlir::dyn_cast<cir::FPAttr>(*initialValue)) {
-      if (!floating.getValue().isFinite())
-        return global.emitError("non-finite floating-point global initializers "
-                                "are not yet supported");
-      converted = mlir::FloatAttr::get(*type, floating.getValue());
-    } else if (auto pointer = mlir::dyn_cast<cir::ConstPtrAttr>(*initialValue);
-               pointer && pointer.isNullValue())
-      converted = mlir::emitc::OpaqueAttr::get(builder.getContext(), "nullptr");
-    else
-      return global.emitError(
-          "unsupported CIR global initializer for C++ translation");
-    state.addAttribute("initial_value", converted);
+    auto converted = convertConstantAttribute(*initialValue, *type, global,
+                                              builder, "global initializer");
+    if (mlir::failed(converted))
+      return mlir::failure();
+    state.addAttribute("initial_value", *converted);
   }
   builder.create(state);
   return mlir::success();

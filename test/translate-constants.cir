@@ -1,0 +1,34 @@
+// RUN: %circc translate --input=%s --output=%t.cpp
+// RUN: FileCheck %s --match-full-lines --input-file=%t.cpp
+// RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+
+// CHECK: #include <stdint.h>
+
+module {
+  cir.func @boolean() -> !cir.bool {
+    %value = cir.const #cir.bool<true> : !cir.bool
+    cir.return %value : !cir.bool
+  }
+// CHECK-NEXT: bool boolean() {
+// CHECK-NEXT:   bool v1 = true;
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @floating() -> !cir.float {
+    %value = cir.const #cir.fp<2.500000e+00> : !cir.float
+    cir.return %value : !cir.float
+  }
+// CHECK-NEXT: float floating() {
+// CHECK-NEXT:   float v1 = 2.500000000e+00f;
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @null_pointer() -> !cir.ptr<!cir.int<s, 32>> {
+    %value = cir.const #cir.ptr<null> : !cir.ptr<!cir.int<s, 32>>
+    cir.return %value : !cir.ptr<!cir.int<s, 32>>
+  }
+// CHECK-NEXT: int32_t* null_pointer() {
+// CHECK-NEXT:   return nullptr;
+// CHECK-NEXT: }
+// CHECK-NOT: {{.}}
+}
