@@ -102,7 +102,13 @@ pixi run circc --help
 Run the `circc` regression tests:
 
 ```console
-pixi run test
+pixi run tests
+```
+
+Run selected regression test files or directories (builds `circc` first):
+
+```console
+pixi run test test/translate-globals.cir test/translate-globals-invalid.test
 ```
 
 After changing `cmake/caches/LLVM.cmake`, remember that cache entries without
