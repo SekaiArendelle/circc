@@ -1,4 +1,4 @@
-#include "CIRToCpp.h"
+#include "circc/Target/Cpp/CIRToCpp.h"
 
 #include "clang/CIR/Dialect/IR/CIRDialect.h"
 

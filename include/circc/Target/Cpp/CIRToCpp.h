@@ -1,5 +1,5 @@
-#ifndef CIRCC_TOOLS_CIRCC_CIRTOCPP_H
-#define CIRCC_TOOLS_CIRCC_CIRTOCPP_H
+#ifndef CIRCC_TARGET_CPP_CIRTOCPP_H
+#define CIRCC_TARGET_CPP_CIRTOCPP_H
 
 #include "clang/Basic/LangStandard.h"
 
@@ -16,4 +16,4 @@ mlir::LogicalResult translateToCpp(mlir::ModuleOp sourceModule,
 
 } // namespace circc
 
-#endif // CIRCC_TOOLS_CIRCC_CIRTOCPP_H
+#endif // CIRCC_TARGET_CPP_CIRTOCPP_H

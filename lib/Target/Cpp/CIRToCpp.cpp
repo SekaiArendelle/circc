@@ -1,4 +1,4 @@
-#include "CIRToCpp.h"
+#include "circc/Target/Cpp/CIRToCpp.h"
 
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LangOptions.h"

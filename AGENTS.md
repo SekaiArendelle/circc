@@ -29,6 +29,8 @@ build because packaged LLVM distributions do not include CIR.
 | Path | Purpose |
 |------|---------|
 | `tools/circc/` | Command-line entry point |
+| `include/circc/` | Public translation interfaces |
+| `lib/Target/Cpp/` | CIR-to-C++ translation library |
 | `cmake/caches/LLVM.cmake` | CIR-enabled LLVM initial cache |
 | `cmake/toolchains/Clang.cmake` | Pixi Clang toolchain selection |
 | `pixi.toml` / `pixi.lock` | Pinned tools, platforms, and tasks |
