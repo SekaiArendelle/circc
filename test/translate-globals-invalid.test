@@ -1,0 +1,16 @@
+# RUN: echo 'module { cir.global "private" external @class : !cir.int<s, 32> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=NAME
+# RUN: echo 'module { cir.global weak @g = #cir.int<0> : !cir.int<s, 32> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=LINKAGE
+# RUN: echo 'module { cir.global "private" internal @g : !cir.int<s, 32> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=DECL
+# RUN: echo 'module { cir.global external @g = #cir.int<0> : !cir.int<s, 32> {alignment = 16 : i64} }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ALIGN
+# RUN: echo 'module { cir.global external @g = #cir.ptr<1 : i64> : !cir.ptr<!cir.int<s, 32>> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=INIT
+# RUN: echo 'module { cir.global constant external @g = #cir.ptr<null> : !cir.ptr<!cir.int<s, 32>> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=CONSTPTR
+# RUN: echo 'module { cir.global hidden external @g = #cir.int<0> : !cir.int<s, 32> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=META
+# RUN: echo 'module { cir.global "private" external @g : !cir.int<s, 128> }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=TYPE
+# NAME: error: global name is not a valid C++ identifier
+# LINKAGE: error: only external and internal global linkage is supported
+# DECL: error: internal global declarations are not yet supported
+# ALIGN: error: over-aligned globals are not representable
+# INIT: error: unsupported CIR global initializer
+# CONSTPTR: error: constant pointer globals are not yet supported
+# META: error: global has visibility, ABI, or metadata attributes
+# TYPE: error: only fundamental 8-, 16-, 32-, and 64-bit CIR integer types are supported

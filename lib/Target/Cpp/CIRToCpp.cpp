@@ -7,6 +7,7 @@
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Target/Cpp/CppEmitter.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -256,6 +257,83 @@ lowerReturn(cir::ReturnOp returnOp, mlir::OpBuilder &builder,
   return mlir::success();
 }
 
+mlir::LogicalResult lowerGlobal(cir::GlobalOp global, mlir::OpBuilder &builder,
+                                clang::IdentifierTable &identifiers) {
+  if (!isCppIdentifier(global.getSymName(), identifiers))
+    return global.emitError("global name is not a valid C++ identifier");
+  bool internal =
+      global.getLinkage() == cir::GlobalLinkageKind::InternalLinkage;
+  if (!internal &&
+      global.getLinkage() != cir::GlobalLinkageKind::ExternalLinkage)
+    return global.emitError(
+        "only external and internal global linkage is supported");
+  if (internal && global.isDeclaration())
+    return global.emitError(
+        "internal global declarations are not yet supported");
+  if (global.getGlobalVisibility() != cir::VisibilityKind::Default ||
+      global.getDsoLocal() || global.getComdat() || global.getAddrSpace() ||
+      global.getTlsModel() || global.getDynTlsRefs() ||
+      global.getStaticLocalGuard() || global.getSection() ||
+      global.getAnnotations() || global.getAliasee())
+    return global.emitError(
+        "global has visibility, ABI, or metadata attributes "
+        "that are not yet supported");
+  // MLIR symbol visibility controls IR lookup, not C++ linkage. Accept the
+  // private visibility commonly attached to CIR globals.
+  if (global.getSymVisibility() && *global.getSymVisibility() != "private")
+    return global.emitError("unsupported global symbol visibility");
+  if (!global.getCtorRegion().empty() || !global.getDtorRegion().empty())
+    return global.emitError(
+        "global constructors and destructors are not yet supported");
+  uint64_t alignment = naturalAlignment(global.getSymType());
+  if (global.getAlignment() &&
+      (alignment == 0 || *global.getAlignment() > alignment))
+    return global.emitError("over-aligned globals are not representable by "
+                            "the current EmitC lowering");
+  // EmitC emits const before the whole declaration, which qualifies the
+  // pointee rather than the pointer object.
+  if (global.getConstant() && mlir::isa<cir::PointerType>(global.getSymType()))
+    return global.emitError("constant pointer globals are not yet supported");
+
+  auto type = convertType(global.getSymType(), global, builder);
+  if (mlir::failed(type))
+    return mlir::failure();
+
+  mlir::OperationState state(global.getLoc(),
+                             mlir::emitc::GlobalOp::getOperationName());
+  state.addAttribute("type", mlir::TypeAttr::get(*type));
+  state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
+                     global.getSymNameAttr());
+  if (internal)
+    state.addAttribute("static_specifier", builder.getUnitAttr());
+  // Namespace-scope const definitions need extern to retain external linkage.
+  if (!internal && (global.isDeclaration() || global.getConstant()))
+    state.addAttribute("extern_specifier", builder.getUnitAttr());
+  if (global.getConstant())
+    state.addAttribute("const_specifier", builder.getUnitAttr());
+  if (auto initialValue = global.getInitialValue()) {
+    mlir::Attribute converted;
+    if (auto integer = mlir::dyn_cast<cir::IntAttr>(*initialValue))
+      converted = mlir::IntegerAttr::get(*type, integer.getValue());
+    else if (auto boolean = mlir::dyn_cast<cir::BoolAttr>(*initialValue))
+      converted = builder.getBoolAttr(boolean.getValue());
+    else if (auto floating = mlir::dyn_cast<cir::FPAttr>(*initialValue)) {
+      if (!floating.getValue().isFinite())
+        return global.emitError("non-finite floating-point global initializers "
+                                "are not yet supported");
+      converted = mlir::FloatAttr::get(*type, floating.getValue());
+    } else if (auto pointer = mlir::dyn_cast<cir::ConstPtrAttr>(*initialValue);
+               pointer && pointer.isNullValue())
+      converted = mlir::emitc::OpaqueAttr::get(builder.getContext(), "nullptr");
+    else
+      return global.emitError(
+          "unsupported CIR global initializer for C++ translation");
+    state.addAttribute("initial_value", converted);
+  }
+  builder.create(state);
+  return mlir::success();
+}
+
 mlir::LogicalResult lowerFunction(cir::FuncOp function,
                                   mlir::OpBuilder &builder,
                                   clang::IdentifierTable &identifiers) {
@@ -365,14 +443,18 @@ lowerToEmitC(mlir::ModuleOp sourceModule, clang::LangStandard::Kind standard) {
   builder.setInsertionPointToEnd(targetModule->getBody());
 
   for (mlir::Operation &operation : sourceModule.getBody()->getOperations()) {
-    auto function = mlir::dyn_cast<cir::FuncOp>(operation);
-    if (!function) {
-      operation.emitError("unsupported top-level operation for C++ "
-                          "translation");
+    if (auto function = mlir::dyn_cast<cir::FuncOp>(operation)) {
+      if (mlir::failed(lowerFunction(function, builder, identifiers)))
+        return mlir::failure();
+    }
+    else if (auto global = mlir::dyn_cast<cir::GlobalOp>(operation)) {
+      if (mlir::failed(lowerGlobal(global, builder, identifiers)))
+        return mlir::failure();
+    }
+    else {
+      operation.emitError("unsupported top-level operation for C++ translation");
       return mlir::failure();
     }
-    if (mlir::failed(lowerFunction(function, builder, identifiers)))
-      return mlir::failure();
   }
 
   if (mlir::failed(mlir::verify(*targetModule)))
