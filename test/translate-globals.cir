@@ -1,31 +1,42 @@
 // RUN: %circc translate --input=%s --output=%t.cpp
-// RUN: FileCheck %s --input-file=%t.cpp
+// RUN: FileCheck %s --match-full-lines --input-file=%t.cpp
 // RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
 // RUN: %clangxx -std=c++17 %t.cpp %S/Inputs/globals-check.cpp -o %t.exe
 // RUN: %t.exe
 // RUN: echo "static_assert(answer == 42); static_assert(local == -7);" >> %t.cpp
 // RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
 
-// CHECK: extern int32_t declaration;
-// CHECK-NEXT: int32_t value = 12;
-// CHECK-NEXT: extern const int32_t answer = 42;
-// CHECK-NEXT: static const int32_t local = -7;
-// CHECK-NEXT: extern const int32_t constant_declaration;
-// CHECK-NEXT: bool enabled = true;
-// CHECK-NEXT: float single = {{2\.5[0-9eE+.-]*}}f;
-// CHECK-NEXT: double real = {{1\.25[0-9eE+.-]*}};
-// CHECK-NEXT: int32_t* pointer = nullptr;
-// CHECK-NEXT: static int32_t zero = 0;
+// CHECK: #include <stdint.h>
 
 module {
   cir.global "private" external @declaration : !cir.int<s, 32>
+// CHECK-NEXT: extern int32_t declaration;
+
   cir.global external @value = #cir.int<12> : !cir.int<s, 32> {alignment = 4 : i64}
+// CHECK-NEXT: int32_t value = 12;
+
   cir.global constant external @answer = #cir.int<42> : !cir.int<s, 32>
+// CHECK-NEXT: extern const int32_t answer = 42;
+
   cir.global "private" constant internal @local = #cir.int<-7> : !cir.int<s, 32>
+// CHECK-NEXT: static const int32_t local = -7;
+
   cir.global "private" constant external @constant_declaration : !cir.int<s, 32>
+// CHECK-NEXT: extern const int32_t constant_declaration;
+
   cir.global external @enabled = #cir.bool<true> : !cir.bool
+// CHECK-NEXT: bool enabled = true;
+
   cir.global external @single = #cir.fp<2.500000e+00> : !cir.float
+// CHECK-NEXT: float single = 2.500000000e+00f;
+
   cir.global external @real = #cir.fp<1.250000e+00> : !cir.double
+// CHECK-NEXT: double real = 1.25000000000000000e+00;
+
   cir.global external @pointer = #cir.ptr<null> : !cir.ptr<!cir.int<s, 32>>
+// CHECK-NEXT: int32_t* pointer = nullptr;
+
   cir.global internal @zero = #cir.int<0> : !cir.int<s, 32>
+// CHECK-NEXT: static int32_t zero = 0;
+// CHECK-NOT: {{.}}
 }
