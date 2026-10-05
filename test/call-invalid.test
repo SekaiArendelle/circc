@@ -1,0 +1,8 @@
+# RUN: echo 'module { cir.func @callee() { cir.return } cir.func @caller() { cir.call @callee() musttail : () -> () cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR
+# RUN: echo 'module { cir.func @callee() { cir.return } cir.func @caller() { cir.call @callee() nothrow : () -> () cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR
+# RUN: echo 'module { cir.func @callee() { cir.return } cir.func @caller() { cir.call @callee() side_effect(pure) : () -> () cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR
+# ATTR: error: call has attributes that are not yet supported
+
+# RUN: echo 'module { cir.func @callee() { cir.return } cir.func @caller() { cir.call @callee() side_effect(const) : () -> () cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR
+# RUN: echo 'module { cir.func @callee(%x: !cir.int<s, 32>) { cir.return } cir.func @caller(%x: !cir.int<s, 32>) { cir.call @callee(%x) : (!cir.int<s, 32> {unsupported = true}) -> () cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR
+# RUN: echo 'module { cir.func @callee(%x: !cir.int<s, 32>) -> !cir.int<s, 32> { cir.return %x : !cir.int<s, 32> } cir.func @caller(%x: !cir.int<s, 32>) { %r = cir.call @callee(%x) : (!cir.int<s, 32>) -> (!cir.int<s, 32> {unsupported = true}) cir.return } }' | not %circc translate 2>&1 | FileCheck %s --check-prefix=ATTR

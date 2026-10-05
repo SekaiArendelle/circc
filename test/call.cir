@@ -1,0 +1,84 @@
+// RUN: %circc translate --input=%s --output=%t.cpp
+// RUN: FileCheck %s --match-full-lines --input-file=%t.cpp
+// RUN: %clangxx -std=c++17 -fsyntax-only %t.cpp
+// RUN: %clangxx -std=c++17 %t.cpp %S/Inputs/call-check.cpp -o %t.exe
+// RUN: %t.exe
+
+!i = !cir.int<s, 32>
+!p = !cir.ptr<!i>
+
+module {
+// CHECK: #include <stdint.h>
+
+  cir.func private @write(!p, !i)
+// CHECK-NEXT: void write(int32_t*, int32_t);
+
+  cir.func private @external(!i, !i) -> !i
+// CHECK-NEXT: int32_t external(int32_t, int32_t);
+
+// Forward declarations for the called definitions.
+// CHECK-NEXT: int32_t later(int32_t v1);
+// CHECK-NEXT: void empty();
+// CHECK-NEXT: int32_t recursive(int32_t v1);
+// CHECK-NEXT: int32_t mutual_b(int32_t v1);
+// CHECK-NEXT: int32_t mutual_a(int32_t v1);
+
+  cir.func @caller(%value: !i, %pointer: !p) -> !i {
+    %first = cir.call @later(%value) : (!i) -> !i
+    cir.call @write(%pointer, %first) : (!p, !i) -> ()
+    %second = cir.call @external(%first, %value) : (!i, !i) -> !i
+    %unused = cir.call @external(%second, %value) : (!i, !i) -> !i
+    cir.call @empty() : () -> ()
+    cir.return %second : !i
+  }
+// CHECK-NEXT: int32_t caller(int32_t v1, int32_t* v2) {
+// CHECK-NEXT:   int32_t v3 = later(v1);
+// CHECK-NEXT:   write(v2, v3);
+// CHECK-NEXT:   int32_t v4 = external(v3, v1);
+// CHECK-NEXT:   int32_t v5 = external(v4, v1);
+// CHECK-NEXT:   empty();
+// CHECK-NEXT:   return v4;
+// CHECK-NEXT: }
+
+  cir.func @later(%value: !i) -> !i {
+    cir.return %value : !i
+  }
+// CHECK-NEXT: int32_t later(int32_t v1) {
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @empty() {
+    cir.return
+  }
+// CHECK-NEXT: void empty() {
+// CHECK-NEXT:   return;
+// CHECK-NEXT: }
+
+  cir.func @recursive(%value: !i) -> !i {
+    %result = cir.call @recursive(%value) : (!i) -> !i
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t recursive(int32_t v1) {
+// CHECK-NEXT:   int32_t v2 = recursive(v1);
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+
+  cir.func @mutual_a(%value: !i) -> !i {
+    %result = cir.call @mutual_b(%value) : (!i) -> !i
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t mutual_a(int32_t v1) {
+// CHECK-NEXT:   int32_t v2 = mutual_b(v1);
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+
+  cir.func @mutual_b(%value: !i) -> !i {
+    %result = cir.call @mutual_a(%value) : (!i) -> !i
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t mutual_b(int32_t v1) {
+// CHECK-NEXT:   int32_t v2 = mutual_a(v1);
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+// CHECK-NOT: {{.}}
+}

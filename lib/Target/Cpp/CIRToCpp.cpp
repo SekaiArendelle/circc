@@ -298,6 +298,39 @@ lowerStore(cir::StoreOp store, mlir::OpBuilder &builder,
 }
 
 mlir::LogicalResult
+lowerCall(cir::CallOp call, mlir::OpBuilder &builder,
+          llvm::DenseMap<mlir::Value, mlir::Value> &values) {
+  if (call.isIndirect())
+    return call.emitError("indirect calls are not yet supported");
+  if (call.getMusttail() || call.getNothrow() ||
+      call.getSideEffect() != cir::SideEffect::All ||
+      hasNonEmptyDictionaries(call.getArgAttrs()) ||
+      hasNonEmptyDictionaries(call.getResAttrs()))
+    return call.emitError("call has attributes that are not yet supported");
+
+  mlir::OperationState state(call.getLoc(),
+                             mlir::emitc::CallOp::getOperationName());
+  state.addAttribute("callee", call.getCalleeAttr());
+  for (mlir::Value argument : call.getArgOperands()) {
+    auto value = lookup(argument, call, values);
+    if (mlir::failed(value))
+      return mlir::failure();
+    state.addOperands(*value);
+  }
+  for (mlir::Type result : call.getResultTypes()) {
+    auto type = convertType(result, call, builder);
+    if (mlir::failed(type))
+      return mlir::failure();
+    state.addTypes(*type);
+  }
+  mlir::Operation *lowered = builder.create(state);
+  for (auto [source, target] :
+       llvm::zip_equal(call.getResults(), lowered->getResults()))
+    values[source] = target;
+  return mlir::success();
+}
+
+mlir::LogicalResult
 lowerReturn(cir::ReturnOp returnOp, mlir::OpBuilder &builder,
             const llvm::DenseMap<mlir::Value, mlir::Value> &values) {
   mlir::OperationState state(returnOp.getLoc(),
@@ -391,7 +424,10 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
   if (function.getLinkage() != cir::GlobalLinkageKind::ExternalLinkage)
     return function.emitError("only external function linkage is supported");
   if (function.getGlobalVisibility() != cir::VisibilityKind::Default ||
-      function.getDsoLocal() || function.getSymVisibility() ||
+      function.getDsoLocal() ||
+      (function.getSymVisibility() &&
+       !(function.isDeclaration() &&
+         *function.getSymVisibility() == "private")) ||
       function.getComdat() || hasNonEmptyDictionaries(function.getArgAttrs()) ||
       hasNonEmptyDictionaries(function.getResAttrs()) ||
       function.getSideEffect() || function.getGlobalCtorPriority() ||
@@ -464,6 +500,9 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
     } else if (auto load = mlir::dyn_cast<cir::LoadOp>(operation)) {
       if (mlir::failed(lowerLoad(load, builder, values, addressedObjects)))
         return mlir::failure();
+    } else if (auto call = mlir::dyn_cast<cir::CallOp>(operation)) {
+      if (mlir::failed(lowerCall(call, builder, values)))
+        return mlir::failure();
     } else if (auto returnOp = mlir::dyn_cast<cir::ReturnOp>(operation)) {
       if (mlir::failed(lowerReturn(returnOp, builder, values)))
         return mlir::failure();
@@ -494,8 +533,38 @@ lowerToEmitC(mlir::ModuleOp sourceModule, clang::LangStandard::Kind standard) {
     if (mlir::failed(lowerGlobal(global, builder, identifiers)))
       return mlir::failure();
 
+  // EmitC's declaration emitter uses signature types for external functions.
+  // DeclareFuncOp instead uses block arguments and is only suitable for
+  // definitions, so emit external declarations here before any calls.
+  for (auto function : sourceModule.getOps<cir::FuncOp>())
+    if (function.isDeclaration() &&
+        mlir::failed(lowerFunction(function, builder, identifiers)))
+      return mlir::failure();
+
+  // C++ requires declarations before calls, including forward and mutual calls.
+  // DeclareFuncOp references the function emitted below without duplicating its
+  // symbol in the EmitC module.
+  llvm::SmallVector<mlir::FlatSymbolRefAttr> callees;
+  for (auto function : sourceModule.getOps<cir::FuncOp>())
+    for (mlir::Block &block : function.getBody())
+      for (auto call : block.getOps<cir::CallOp>())
+        if (auto callee = call.getCalleeAttr();
+            callee && !llvm::is_contained(callees, callee))
+          callees.push_back(callee);
+  for (auto callee : callees) {
+    auto function = sourceModule.lookupSymbol<cir::FuncOp>(callee.getValue());
+    if (function && function.isDeclaration())
+      continue;
+    mlir::OperationState state(sourceModule.getLoc(),
+                               mlir::emitc::DeclareFuncOp::getOperationName());
+    state.addAttribute("sym_name", callee);
+    builder.create(state);
+  }
+
   for (mlir::Operation &operation : sourceModule.getBody()->getOperations()) {
     if (auto function = mlir::dyn_cast<cir::FuncOp>(operation)) {
+      if (function.isDeclaration())
+        continue;
       if (mlir::failed(lowerFunction(function, builder, identifiers)))
         return mlir::failure();
     } else if (mlir::isa<cir::GlobalOp>(operation))
