@@ -152,6 +152,13 @@ changed behavior and document their command here.
   and IR invariants.
 - Add tests with behavior changes. Translation work should eventually cover
   both emitted text and recompilation/semantic validation where applicable.
+- In `.cir` translation tests, place each `cir.func` immediately before its
+  corresponding complete generated C++ checks. Use `CHECK` for the first line
+  and `CHECK-NEXT` for every subsequent line, including the closing brace.
+  Check all generated content, including includes and forward declarations,
+  with `--match-full-lines`; finish with `CHECK-NOT: {{.}}` to reject extra
+  output. Keep checks interleaved with functions rather than grouped at the
+  end of the file.
 - Do not add project-specific style rules that conflict with upstream LLVM.
   When in doubt, follow the code in the pinned LLVM 23.1.2 tree.
 
