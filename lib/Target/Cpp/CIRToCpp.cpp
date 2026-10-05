@@ -113,8 +113,9 @@ mlir::FailureOr<mlir::Value>
 getLValue(mlir::Value address, mlir::Operation *context,
           mlir::OpBuilder &builder,
           const llvm::DenseMap<mlir::Value, mlir::Value> &values,
-          const llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
-  if (auto found = localObjects.find(address); found != localObjects.end())
+          const llvm::DenseMap<mlir::Value, mlir::Value> &addressedObjects) {
+  if (auto found = addressedObjects.find(address);
+      found != addressedObjects.end())
     return found->second;
   auto mapped = lookup(address, context, values);
   if (mlir::failed(mapped))
@@ -193,7 +194,7 @@ lowerConstant(cir::ConstantOp constant, mlir::OpBuilder &builder,
 mlir::LogicalResult
 lowerAlloca(cir::AllocaOp alloca, mlir::OpBuilder &builder,
             llvm::DenseMap<mlir::Value, mlir::Value> &values,
-            llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
+            llvm::DenseMap<mlir::Value, mlir::Value> &addressedObjects) {
   if (alloca.isDynamic() || alloca.getConstant() ||
       alloca.getCleanupDestSlot() || alloca.getAnnotations())
     return alloca.emitError("dynamic, const, cleanup, and annotated allocas "
@@ -213,7 +214,7 @@ lowerAlloca(cir::AllocaOp alloca, mlir::OpBuilder &builder,
                      mlir::emitc::OpaqueAttr::get(builder.getContext(), ""));
   mlir::Operation *lowered = builder.create(state);
   mlir::Value localObject = lowered->getResult(0);
-  localObjects[alloca.getAddr()] = localObject;
+  addressedObjects[alloca.getAddr()] = localObject;
 
   mlir::OperationState addressState(
       alloca.getLoc(), mlir::emitc::AddressOfOp::getOperationName());
@@ -226,7 +227,7 @@ lowerAlloca(cir::AllocaOp alloca, mlir::OpBuilder &builder,
 mlir::LogicalResult
 lowerGetGlobal(cir::GetGlobalOp getGlobal, mlir::OpBuilder &builder,
                llvm::DenseMap<mlir::Value, mlir::Value> &values,
-               llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
+               llvm::DenseMap<mlir::Value, mlir::Value> &addressedObjects) {
   if (getGlobal.getTls() || getGlobal.getStaticLocal())
     return getGlobal.emitError("thread-local and guarded static global "
                                "addresses are not yet supported");
@@ -243,7 +244,7 @@ lowerGetGlobal(cir::GetGlobalOp getGlobal, mlir::OpBuilder &builder,
   state.addAttribute("name", getGlobal.getNameAttr());
   state.addTypes(mlir::emitc::LValueType::get(pointer.getPointee()));
   mlir::Value object = builder.create(state)->getResult(0);
-  localObjects[getGlobal.getAddr()] = object;
+  addressedObjects[getGlobal.getAddr()] = object;
 
   mlir::OperationState addressState(
       getGlobal.getLoc(), mlir::emitc::AddressOfOp::getOperationName());
@@ -257,11 +258,12 @@ lowerGetGlobal(cir::GetGlobalOp getGlobal, mlir::OpBuilder &builder,
 mlir::LogicalResult
 lowerLoad(cir::LoadOp load, mlir::OpBuilder &builder,
           llvm::DenseMap<mlir::Value, mlir::Value> &values,
-          const llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
+          const llvm::DenseMap<mlir::Value, mlir::Value> &addressedObjects) {
   if (load.getIsVolatile() || load.getIsNontemporal() || load.getAlignment() ||
       load.getSyncScope() || load.getMemOrder() || load.getInvariant())
     return load.emitError("specialized loads are not yet supported");
-  auto lvalue = getLValue(load.getAddr(), load, builder, values, localObjects);
+  auto lvalue =
+      getLValue(load.getAddr(), load, builder, values, addressedObjects);
   auto type = convertType(load.getType(), load, builder);
   if (mlir::failed(lvalue) || mlir::failed(type))
     return mlir::failure();
@@ -278,13 +280,13 @@ lowerLoad(cir::LoadOp load, mlir::OpBuilder &builder,
 mlir::LogicalResult
 lowerStore(cir::StoreOp store, mlir::OpBuilder &builder,
            const llvm::DenseMap<mlir::Value, mlir::Value> &values,
-           const llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
+           const llvm::DenseMap<mlir::Value, mlir::Value> &addressedObjects) {
   if (store.getIsVolatile() || store.getIsNontemporal() ||
       store.getAlignment() || store.getSyncScope() || store.getMemOrder())
     return store.emitError("specialized stores are not yet supported");
   auto value = lookup(store.getValue(), store, values);
   auto lvalue =
-      getLValue(store.getAddr(), store, builder, values, localObjects);
+      getLValue(store.getAddr(), store, builder, values, addressedObjects);
   if (mlir::failed(value) || mlir::failed(lvalue))
     return mlir::failure();
 
@@ -433,7 +435,7 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
     return function.emitError("only single-block functions are supported");
 
   llvm::DenseMap<mlir::Value, mlir::Value> values;
-  llvm::DenseMap<mlir::Value, mlir::Value> localObjects;
+  llvm::DenseMap<mlir::Value, mlir::Value> addressedObjects;
 
   mlir::OpBuilder::InsertionGuard guard(builder);
   llvm::SmallVector<mlir::Location> argumentLocations(inputs.size(),
@@ -450,17 +452,17 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
       if (mlir::failed(lowerConstant(constant, builder, values)))
         return mlir::failure();
     } else if (auto alloca = mlir::dyn_cast<cir::AllocaOp>(operation)) {
-      if (mlir::failed(lowerAlloca(alloca, builder, values, localObjects)))
+      if (mlir::failed(lowerAlloca(alloca, builder, values, addressedObjects)))
         return mlir::failure();
     } else if (auto getGlobal = mlir::dyn_cast<cir::GetGlobalOp>(operation)) {
       if (mlir::failed(
-              lowerGetGlobal(getGlobal, builder, values, localObjects)))
+              lowerGetGlobal(getGlobal, builder, values, addressedObjects)))
         return mlir::failure();
     } else if (auto store = mlir::dyn_cast<cir::StoreOp>(operation)) {
-      if (mlir::failed(lowerStore(store, builder, values, localObjects)))
+      if (mlir::failed(lowerStore(store, builder, values, addressedObjects)))
         return mlir::failure();
     } else if (auto load = mlir::dyn_cast<cir::LoadOp>(operation)) {
-      if (mlir::failed(lowerLoad(load, builder, values, localObjects)))
+      if (mlir::failed(lowerLoad(load, builder, values, addressedObjects)))
         return mlir::failure();
     } else if (auto returnOp = mlir::dyn_cast<cir::ReturnOp>(operation)) {
       if (mlir::failed(lowerReturn(returnOp, builder, values)))
