@@ -1,0 +1,2 @@
+# RUN: echo 'module { cir.func @target() { cir.return } cir.func @address() { %addr = cir.get_global @target : !cir.ptr<!cir.func<()>> cir.return } }' | not %circc translate 2>&1 | FileCheck %s
+# CHECK: error: function addresses are not yet supported

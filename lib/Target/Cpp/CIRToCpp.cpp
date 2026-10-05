@@ -224,6 +224,37 @@ lowerAlloca(cir::AllocaOp alloca, mlir::OpBuilder &builder,
 }
 
 mlir::LogicalResult
+lowerGetGlobal(cir::GetGlobalOp getGlobal, mlir::OpBuilder &builder,
+               llvm::DenseMap<mlir::Value, mlir::Value> &values,
+               llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
+  if (getGlobal.getTls() || getGlobal.getStaticLocal())
+    return getGlobal.emitError("thread-local and guarded static global "
+                               "addresses are not yet supported");
+  auto global = mlir::SymbolTable::lookupNearestSymbolFrom<cir::GlobalOp>(
+      getGlobal, getGlobal.getNameAttr());
+  if (!global)
+    return getGlobal.emitError("function addresses are not yet supported");
+  auto type = convertType(getGlobal.getAddr().getType(), getGlobal, builder);
+  if (mlir::failed(type))
+    return mlir::failure();
+  auto pointer = mlir::cast<mlir::emitc::PointerType>(*type);
+  mlir::OperationState state(getGlobal.getLoc(),
+                             mlir::emitc::GetGlobalOp::getOperationName());
+  state.addAttribute("name", getGlobal.getNameAttr());
+  state.addTypes(mlir::emitc::LValueType::get(pointer.getPointee()));
+  mlir::Value object = builder.create(state)->getResult(0);
+  localObjects[getGlobal.getAddr()] = object;
+
+  mlir::OperationState addressState(
+      getGlobal.getLoc(), mlir::emitc::AddressOfOp::getOperationName());
+  addressState.addOperands(object);
+  addressState.addTypes(*type);
+  mlir::Value address = builder.create(addressState)->getResult(0);
+  values[getGlobal.getAddr()] = address;
+  return mlir::success();
+}
+
+mlir::LogicalResult
 lowerLoad(cir::LoadOp load, mlir::OpBuilder &builder,
           llvm::DenseMap<mlir::Value, mlir::Value> &values,
           const llvm::DenseMap<mlir::Value, mlir::Value> &localObjects) {
@@ -421,6 +452,10 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
     } else if (auto alloca = mlir::dyn_cast<cir::AllocaOp>(operation)) {
       if (mlir::failed(lowerAlloca(alloca, builder, values, localObjects)))
         return mlir::failure();
+    } else if (auto getGlobal = mlir::dyn_cast<cir::GetGlobalOp>(operation)) {
+      if (mlir::failed(
+              lowerGetGlobal(getGlobal, builder, values, localObjects)))
+        return mlir::failure();
     } else if (auto store = mlir::dyn_cast<cir::StoreOp>(operation)) {
       if (mlir::failed(lowerStore(store, builder, values, localObjects)))
         return mlir::failure();
@@ -452,17 +487,20 @@ lowerToEmitC(mlir::ModuleOp sourceModule, clang::LangStandard::Kind standard) {
   createInclude(builder, sourceModule.getLoc(), "stdint.h");
   builder.setInsertionPointToEnd(targetModule->getBody());
 
+  // Emit global declarations before functions that may reference them.
+  for (auto global : sourceModule.getOps<cir::GlobalOp>())
+    if (mlir::failed(lowerGlobal(global, builder, identifiers)))
+      return mlir::failure();
+
   for (mlir::Operation &operation : sourceModule.getBody()->getOperations()) {
     if (auto function = mlir::dyn_cast<cir::FuncOp>(operation)) {
       if (mlir::failed(lowerFunction(function, builder, identifiers)))
         return mlir::failure();
-    }
-    else if (auto global = mlir::dyn_cast<cir::GlobalOp>(operation)) {
-      if (mlir::failed(lowerGlobal(global, builder, identifiers)))
-        return mlir::failure();
-    }
+    } else if (mlir::isa<cir::GlobalOp>(operation))
+      continue;
     else {
-      operation.emitError("unsupported top-level operation for C++ translation");
+      operation.emitError(
+          "unsupported top-level operation for C++ translation");
       return mlir::failure();
     }
   }

@@ -1,0 +1,93 @@
+// RUN: %circc translate --input=%s --output=%t.cpp
+// RUN: FileCheck %s --match-full-lines --input-file=%t.cpp
+// RUN: %clangxx -std=c++17 %t.cpp %S/Inputs/get-global-check.cpp -o %t.exe
+// RUN: %t.exe
+
+// CHECK: #include <stdint.h>
+// CHECK-NEXT: static int32_t value = 12;
+// CHECK-NEXT: extern const int32_t answer = 42;
+// CHECK-NEXT: extern int32_t external_value;
+// CHECK-NEXT: int32_t* pointer = nullptr;
+
+!i = !cir.int<s, 32>
+!p = !cir.ptr<!i>
+module {
+  cir.func @read() -> !i {
+    %p = cir.get_global @value : !p
+    %v = cir.load %p : !p, !i
+    cir.return %v : !i
+  }
+// CHECK-NEXT: int32_t read() {
+// CHECK-NEXT:   int32_t* v1 = &value;
+// CHECK-NEXT:   int32_t v2 = value;
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+
+  cir.func @write(%v: !i) {
+    %p = cir.get_global @value : !p
+    cir.store %v, %p : !i, !p
+    cir.return
+  }
+// CHECK-NEXT: void write(int32_t v1) {
+// CHECK-NEXT:   int32_t* v2 = &value;
+// CHECK-NEXT:   value = v1;
+// CHECK-NEXT:   return;
+// CHECK-NEXT: }
+
+  cir.func @address() -> !p {
+    %p = cir.get_global @value : !p
+    cir.return %p : !p
+  }
+// CHECK-NEXT: int32_t* address() {
+// CHECK-NEXT:   int32_t* v1 = &value;
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @read_constant() -> !i {
+    %p = cir.get_global @answer : !p
+    %v = cir.load %p : !p, !i
+    cir.return %v : !i
+  }
+// CHECK-NEXT: int32_t read_constant() {
+// CHECK-NEXT:   int32_t* v1 = (int32_t*)(&answer);
+// CHECK-NEXT:   int32_t v2 = answer;
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+
+  cir.func @constant_address() -> !p {
+    %p = cir.get_global @answer : !p
+    cir.return %p : !p
+  }
+// CHECK-NEXT: int32_t* constant_address() {
+// CHECK-NEXT:   int32_t* v1 = (int32_t*)(&answer);
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @read_external() -> !i {
+    %p = cir.get_global @external_value : !p
+    %v = cir.load %p : !p, !i
+    cir.return %v : !i
+  }
+// CHECK-NEXT: int32_t read_external() {
+// CHECK-NEXT:   int32_t* v1 = &external_value;
+// CHECK-NEXT:   int32_t v2 = external_value;
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+
+  cir.func @read_pointer() -> !p {
+    %p = cir.get_global @pointer : !cir.ptr<!p>
+    %v = cir.load %p : !cir.ptr<!p>, !p
+    cir.return %v : !p
+  }
+// CHECK-NEXT: int32_t* read_pointer() {
+// CHECK-NEXT:   int32_t** v1 = &pointer;
+// CHECK-NEXT:   int32_t* v2 = pointer;
+// CHECK-NEXT:   return v2;
+// CHECK-NEXT: }
+// CHECK-NOT: {{.}}
+
+  cir.global internal @value = #cir.int<12> : !i
+  cir.global constant external @answer = #cir.int<42> : !i
+  cir.global "private" external @external_value : !i
+  cir.global external @pointer = #cir.ptr<null> : !p
+}
