@@ -1,0 +1,177 @@
+// RUN: %circc translate --input=%s --output=%t.cpp
+// RUN: FileCheck %s --match-full-lines --input-file=%t.cpp
+// RUN: %clangxx -std=c++17 %t.cpp %S/Inputs/branches-check.cpp -o %t.exe
+// RUN: %t.exe
+
+!i = !cir.int<s, 32>
+module {
+// CHECK: #include <stdint.h>
+  cir.func private @pair(!i, !i) -> !i
+// CHECK-NEXT: int32_t pair(int32_t, int32_t);
+
+  cir.func @jump(%value: !i) -> !i {
+    cir.br ^exit
+  ^exit:
+    cir.return %value : !i
+  }
+// CHECK-NEXT: int32_t jump(int32_t v1) {
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: }
+
+  cir.func @choose(%condition: !cir.bool, %left: !i, %right: !i) -> !i {
+    cir.brcond %condition ^yes(%left : !i), ^no(%right : !i)
+  ^yes(%a: !i):
+    cir.br ^exit(%a : !i)
+  ^no(%b: !i):
+    cir.br ^exit(%b : !i)
+  ^exit(%result: !i):
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t choose(bool v1, int32_t v2, int32_t v3) {
+// CHECK-NEXT:   int32_t v4;
+// CHECK-NEXT:   int32_t v5;
+// CHECK-NEXT:   int32_t v6;
+// CHECK-NEXT:   int32_t v7;
+// CHECK-NEXT:   int32_t v8;
+// CHECK-NEXT:   int32_t v9;
+// CHECK-NEXT:   int32_t v10;
+// CHECK-NEXT:   v4 = (int32_t) v2;
+// CHECK-NEXT:   v5 = (int32_t) v3;
+// CHECK-NEXT:   if (v1) {
+// CHECK-NEXT:     v8 = v4;
+// CHECK-NEXT:     goto label2;
+// CHECK-NEXT:   } else {
+// CHECK-NEXT:     v9 = v5;
+// CHECK-NEXT:     goto label3;
+// CHECK-NEXT:   }
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   v6 = (int32_t) v8;
+// CHECK-NEXT:   v10 = v6;
+// CHECK-NEXT:   goto label4;
+// CHECK-NEXT: label3:
+// CHECK-NEXT:   v7 = (int32_t) v9;
+// CHECK-NEXT:   v10 = v7;
+// CHECK-NEXT:   goto label4;
+// CHECK-NEXT: label4:
+// CHECK-NEXT:   return v10;
+// CHECK-NEXT: }
+
+  cir.func @swap(%left: !i, %right: !i) -> !i {
+    %first = cir.const #cir.bool<true> : !cir.bool
+    cir.br ^loop(%left, %right, %first : !i, !i, !cir.bool)
+  ^loop(%a: !i, %b: !i, %again: !cir.bool):
+    cir.brcond %again ^body, ^exit(%a, %b : !i, !i)
+  ^body:
+    %last = cir.const #cir.bool<false> : !cir.bool
+    cir.br ^loop(%b, %a, %last : !i, !i, !cir.bool)
+  ^exit(%x: !i, %y: !i):
+    %result = cir.call @pair(%x, %y) : (!i, !i) -> !i
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t swap(int32_t v1, int32_t v2) {
+// CHECK-NEXT:   bool v3;
+// CHECK-NEXT:   int32_t v4;
+// CHECK-NEXT:   int32_t v5;
+// CHECK-NEXT:   bool v6;
+// CHECK-NEXT:   int32_t v7;
+// CHECK-NEXT:   int32_t v8;
+// CHECK-NEXT:   bool v9;
+// CHECK-NEXT:   int32_t v10;
+// CHECK-NEXT:   int32_t v11;
+// CHECK-NEXT:   bool v12;
+// CHECK-NEXT:   int32_t v13;
+// CHECK-NEXT:   int32_t v14;
+// CHECK-NEXT:   int32_t v15;
+// CHECK-NEXT:   bool v16;
+// CHECK-NEXT:   int32_t v17;
+// CHECK-NEXT:   int32_t v18;
+// CHECK-NEXT:   v3 = true;
+// CHECK-NEXT:   v4 = (int32_t) v1;
+// CHECK-NEXT:   v5 = (int32_t) v2;
+// CHECK-NEXT:   v6 = (bool) v3;
+// CHECK-NEXT:   v14 = v4;
+// CHECK-NEXT:   v15 = v5;
+// CHECK-NEXT:   v16 = v6;
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   v7 = (int32_t) v14;
+// CHECK-NEXT:   v8 = (int32_t) v15;
+// CHECK-NEXT:   if (v16) {
+// CHECK-NEXT:     goto label3;
+// CHECK-NEXT:   } else {
+// CHECK-NEXT:     v17 = v7;
+// CHECK-NEXT:     v18 = v8;
+// CHECK-NEXT:     goto label4;
+// CHECK-NEXT:   }
+// CHECK-NEXT: label3:
+// CHECK-NEXT:   v9 = false;
+// CHECK-NEXT:   v10 = (int32_t) v15;
+// CHECK-NEXT:   v11 = (int32_t) v14;
+// CHECK-NEXT:   v12 = (bool) v9;
+// CHECK-NEXT:   v14 = v10;
+// CHECK-NEXT:   v15 = v11;
+// CHECK-NEXT:   v16 = v12;
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: label4:
+// CHECK-NEXT:   v13 = pair(v17, v18);
+// CHECK-NEXT:   return v13;
+// CHECK-NEXT: }
+
+  cir.func @layout() -> !i {
+    cir.br ^definition
+  ^use:
+    cir.return %value : !i
+  ^definition:
+    %value = cir.const #cir.int<42> : !i
+    cir.br ^use
+  }
+// CHECK-NEXT: int32_t layout() {
+// CHECK-NEXT:   int32_t v1;
+// CHECK-NEXT:   goto label3;
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   return v1;
+// CHECK-NEXT: label3:
+// CHECK-NEXT:   v1 = 42;
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: }
+
+  cir.func @memory(%value: !i) -> !i {
+    %slot = cir.alloca "slot" align(4) : !cir.ptr<!i>
+    cir.store %value, %slot : !i, !cir.ptr<!i>
+    cir.br ^exit
+  ^exit:
+    %result = cir.load %slot : !cir.ptr<!i>, !i
+    cir.return %result : !i
+  }
+// CHECK-NEXT: int32_t memory(int32_t v1) {
+// CHECK-NEXT:   int32_t v2;
+// CHECK-NEXT:   int32_t* v3;
+// CHECK-NEXT:   int32_t v4;
+// CHECK-NEXT:   ;
+// CHECK-NEXT:   v3 = &v2;
+// CHECK-NEXT:   v2 = v1;
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   v4 = v2;
+// CHECK-NEXT:   return v4;
+// CHECK-NEXT: }
+
+  cir.func @pointer(%value: !cir.ptr<!i>) -> !cir.ptr<!i> {
+    cir.br ^exit(%value : !cir.ptr<!i>)
+  ^exit(%result: !cir.ptr<!i>):
+    cir.return %result : !cir.ptr<!i>
+  }
+// CHECK-NEXT: int32_t* pointer(int32_t* v1) {
+// CHECK-NEXT:   int32_t* v2;
+// CHECK-NEXT:   int32_t* v3;
+// CHECK-NEXT:   v2 = (int32_t*) v1;
+// CHECK-NEXT:   v3 = v2;
+// CHECK-NEXT:   goto label2;
+// CHECK-NEXT: label2:
+// CHECK-NEXT:   return v3;
+// CHECK-NEXT: }
+
+}
+// CHECK-NOT: {{.}}

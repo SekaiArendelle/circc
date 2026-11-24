@@ -21,5 +21,6 @@ target_link_libraries(CIRCCToCpp
   PRIVATE
   MLIRCIR
   MLIREmitCDialect
+  MLIRControlFlowDialect
   MLIRTargetCpp
 )

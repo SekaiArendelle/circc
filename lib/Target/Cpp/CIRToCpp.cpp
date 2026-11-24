@@ -4,6 +4,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/CIR/Dialect/IR/CIRDialect.h"
 
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
@@ -331,6 +332,26 @@ lowerCall(cir::CallOp call, mlir::OpBuilder &builder,
 }
 
 mlir::LogicalResult
+lowerBranchOperands(mlir::OperandRange operands, mlir::Operation *branch,
+                    mlir::OpBuilder &builder,
+                    const llvm::DenseMap<mlir::Value, mlir::Value> &values,
+                    llvm::SmallVectorImpl<mlir::Value> &converted) {
+  // The C++ emitter assigns successor arguments sequentially. Snapshot every
+  // incoming value first to preserve parallel copies on loop backedges.
+  for (mlir::Value operand : operands) {
+    auto value = lookup(operand, branch, values);
+    if (mlir::failed(value))
+      return mlir::failure();
+    mlir::OperationState state(branch->getLoc(),
+                               mlir::emitc::CastOp::getOperationName());
+    state.addOperands(*value);
+    state.addTypes((*value).getType());
+    converted.push_back(builder.create(state)->getResult(0));
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult
 lowerReturn(cir::ReturnOp returnOp, mlir::OpBuilder &builder,
             const llvm::DenseMap<mlir::Value, mlir::Value> &values) {
   mlir::OperationState state(returnOp.getLoc(),
@@ -467,47 +488,99 @@ mlir::LogicalResult lowerFunction(cir::FuncOp function,
   auto targetFunction = mlir::cast<mlir::emitc::FuncOp>(builder.create(state));
   if (function.isDeclaration())
     return mlir::success();
-  if (!llvm::hasSingleElement(function.getBody()))
-    return function.emitError("only single-block functions are supported");
 
   llvm::DenseMap<mlir::Value, mlir::Value> values;
   llvm::DenseMap<mlir::Value, mlir::Value> addressedObjects;
 
   mlir::OpBuilder::InsertionGuard guard(builder);
-  llvm::SmallVector<mlir::Location> argumentLocations(inputs.size(),
-                                                      function.getLoc());
-  mlir::Block *targetBlock = builder.createBlock(&targetFunction.getBody(), {},
-                                                 inputs, argumentLocations);
-  mlir::Block &sourceBlock = function.getBody().front();
-  for (auto [source, target] :
-       llvm::zip_equal(sourceBlock.getArguments(), targetBlock->getArguments()))
-    values[source] = target;
+  llvm::DenseMap<mlir::Block *, mlir::Block *> blocks;
+  llvm::SmallVector<mlir::Block *> pending;
+  for (mlir::Block &sourceBlock : function.getBody()) {
+    llvm::SmallVector<mlir::Type> argumentTypes;
+    for (mlir::BlockArgument argument : sourceBlock.getArguments()) {
+      auto type = convertType(argument.getType(), function, builder);
+      if (mlir::failed(type))
+        return mlir::failure();
+      argumentTypes.push_back(*type);
+    }
+    llvm::SmallVector<mlir::Location> locations(argumentTypes.size(),
+                                                function.getLoc());
+    mlir::Block *targetBlock = builder.createBlock(
+        &targetFunction.getBody(), {}, argumentTypes, locations);
+    blocks[&sourceBlock] = targetBlock;
+    pending.push_back(&sourceBlock);
+    for (auto [source, target] : llvm::zip_equal(sourceBlock.getArguments(),
+                                                 targetBlock->getArguments()))
+      values[source] = target;
+  }
 
-  for (mlir::Operation &operation : sourceBlock.getOperations()) {
-    if (auto constant = mlir::dyn_cast<cir::ConstantOp>(operation)) {
-      if (mlir::failed(lowerConstant(constant, builder, values)))
-        return mlir::failure();
-    } else if (auto alloca = mlir::dyn_cast<cir::AllocaOp>(operation)) {
-      if (mlir::failed(lowerAlloca(alloca, builder, values, addressedObjects)))
-        return mlir::failure();
-    } else if (auto getGlobal = mlir::dyn_cast<cir::GetGlobalOp>(operation)) {
-      if (mlir::failed(
-              lowerGetGlobal(getGlobal, builder, values, addressedObjects)))
-        return mlir::failure();
-    } else if (auto store = mlir::dyn_cast<cir::StoreOp>(operation)) {
-      if (mlir::failed(lowerStore(store, builder, values, addressedObjects)))
-        return mlir::failure();
-    } else if (auto load = mlir::dyn_cast<cir::LoadOp>(operation)) {
-      if (mlir::failed(lowerLoad(load, builder, values, addressedObjects)))
-        return mlir::failure();
-    } else if (auto call = mlir::dyn_cast<cir::CallOp>(operation)) {
-      if (mlir::failed(lowerCall(call, builder, values)))
-        return mlir::failure();
-    } else if (auto returnOp = mlir::dyn_cast<cir::ReturnOp>(operation)) {
-      if (mlir::failed(lowerReturn(returnOp, builder, values)))
-        return mlir::failure();
-    } else {
-      return operation.emitError("unsupported operation for C++ translation");
+  // Block layout need not follow SSA definition order. Lower a block once all
+  // values it uses from other blocks have been translated.
+  while (!pending.empty()) {
+    auto ready = llvm::find_if(pending, [&](mlir::Block *block) {
+      return llvm::all_of(block->getOperations(), [&](mlir::Operation &op) {
+        return llvm::all_of(op.getOperands(), [&](mlir::Value operand) {
+          return values.contains(operand) ||
+                 (operand.getDefiningOp() &&
+                  operand.getDefiningOp()->getBlock() == block);
+        });
+      });
+    });
+    if (ready == pending.end())
+      return function.emitError(
+          "cannot order blocks with cyclic SSA dependencies");
+    mlir::Block *sourceBlock = *ready;
+    pending.erase(ready);
+    builder.setInsertionPointToEnd(blocks.lookup(sourceBlock));
+    for (mlir::Operation &operation : sourceBlock->getOperations()) {
+      if (auto constant = mlir::dyn_cast<cir::ConstantOp>(operation)) {
+        if (mlir::failed(lowerConstant(constant, builder, values)))
+          return mlir::failure();
+      } else if (auto alloca = mlir::dyn_cast<cir::AllocaOp>(operation)) {
+        if (mlir::failed(
+                lowerAlloca(alloca, builder, values, addressedObjects)))
+          return mlir::failure();
+      } else if (auto getGlobal = mlir::dyn_cast<cir::GetGlobalOp>(operation)) {
+        if (mlir::failed(
+                lowerGetGlobal(getGlobal, builder, values, addressedObjects)))
+          return mlir::failure();
+      } else if (auto store = mlir::dyn_cast<cir::StoreOp>(operation)) {
+        if (mlir::failed(lowerStore(store, builder, values, addressedObjects)))
+          return mlir::failure();
+      } else if (auto load = mlir::dyn_cast<cir::LoadOp>(operation)) {
+        if (mlir::failed(lowerLoad(load, builder, values, addressedObjects)))
+          return mlir::failure();
+      } else if (auto call = mlir::dyn_cast<cir::CallOp>(operation)) {
+        if (mlir::failed(lowerCall(call, builder, values)))
+          return mlir::failure();
+      } else if (auto branch = mlir::dyn_cast<cir::BrOp>(operation)) {
+        llvm::SmallVector<mlir::Value> operands;
+        if (mlir::failed(lowerBranchOperands(branch.getDestOperands(), branch,
+                                             builder, values, operands)))
+          return mlir::failure();
+        mlir::cf::BranchOp::create(builder, branch.getLoc(),
+                                   blocks.lookup(branch.getDest()), operands);
+      } else if (auto branch = mlir::dyn_cast<cir::BrCondOp>(operation)) {
+        auto condition = lookup(branch.getCond(), branch, values);
+        llvm::SmallVector<mlir::Value> trueOperands, falseOperands;
+        if (mlir::failed(condition) ||
+            mlir::failed(lowerBranchOperands(branch.getDestOperandsTrue(),
+                                             branch, builder, values,
+                                             trueOperands)) ||
+            mlir::failed(lowerBranchOperands(branch.getDestOperandsFalse(),
+                                             branch, builder, values,
+                                             falseOperands)))
+          return mlir::failure();
+        mlir::cf::CondBranchOp::create(
+            builder, branch.getLoc(), *condition,
+            blocks.lookup(branch.getDestTrue()), trueOperands,
+            blocks.lookup(branch.getDestFalse()), falseOperands);
+      } else if (auto returnOp = mlir::dyn_cast<cir::ReturnOp>(operation)) {
+        if (mlir::failed(lowerReturn(returnOp, builder, values)))
+          return mlir::failure();
+      } else {
+        return operation.emitError("unsupported operation for C++ translation");
+      }
     }
   }
   return mlir::success();
@@ -522,6 +595,7 @@ lowerToEmitC(mlir::ModuleOp sourceModule, clang::LangStandard::Kind standard) {
   languageOptions.CXXOperatorNames = true;
   clang::IdentifierTable identifiers(languageOptions);
   mlir::OpBuilder builder(sourceModule.getContext());
+  sourceModule.getContext()->getOrLoadDialect<mlir::cf::ControlFlowDialect>();
   mlir::OwningOpRef<mlir::ModuleOp> targetModule =
       mlir::ModuleOp::create(sourceModule.getLoc());
   builder.setInsertionPointToStart(targetModule->getBody());
@@ -589,5 +663,10 @@ mlir::LogicalResult circc::translateToCpp(mlir::ModuleOp sourceModule,
   auto emitCModule = lowerToEmitC(sourceModule, standard);
   if (mlir::failed(emitCModule))
     return mlir::failure();
-  return mlir::emitc::translateToCpp(**emitCModule, output);
+  bool hasMultipleBlocks =
+      llvm::any_of((*emitCModule)->getOps<mlir::emitc::FuncOp>(),
+                   [](mlir::emitc::FuncOp function) {
+                     return function.getBody().getBlocks().size() > 1;
+                   });
+  return mlir::emitc::translateToCpp(**emitCModule, output, hasMultipleBlocks);
 }
