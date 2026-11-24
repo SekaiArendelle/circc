@@ -14,11 +14,22 @@ Human-facing contribution policy lives in [CONTRIBUTING.md](./CONTRIBUTING.md).
   the final summary instead of discarding them.
 - Keep changes focused. Preserve unrelated work in a dirty worktree and do not
   reformat files or lines outside the requested change.
+- Treat deduplication as abstraction design, not mere code reuse. Extracting
+  duplicates creates a name, a contract, and coupling between call sites, so
+  deduplicate only when the copies express the same knowledge, not merely the
+  same text. Keep the copies when no crisp name and contract exist, or when
+  the extraction needs extra flags or parameters just to serve every call
+  site, and revisit the duplication once a third instance appears or a change
+  must be applied identically to every copy. When other guidance in this file
+  could be read as asking for a shared helper, this rule decides; it is a
+  design rule, so the LLVM style conventions below do not override it.
 - After changing code or build configuration, run the narrowest relevant
   checks and then the normal `circc` build when practical.
 - If a request relies on a false premise or would produce an incorrect design,
   stop and explain the problem with concrete repository evidence before
-  proposing a corrected direction.
+  proposing a corrected direction. Do not use this rule to avoid difficult
+  tasks: when the direction is sound and only the approach is unclear, proceed
+  or ask a focused question instead.
 
 ## Project overview
 
@@ -64,12 +75,35 @@ repository rather than silently modifying the ignored checkout.
    unrelated formatting changes.
 4. **Build** — Configure when CMake inputs changed, then build the `circc`
    target.
-5. **Review** — For substantive behavior, IR transformation, ownership,
+5. **Test** — Run the tests that cover the changed behavior
+   (`pixi run test <file>`), then the full suite (`pixi run tests`) when
+   practical.
+6. **Review** — For substantive behavior, IR transformation, ownership,
    control-flow, ABI, or public-interface changes, request an independent
-   read-only subagent review when subagents are available. Validate findings
-   yourself and rerun affected checks after fixes.
-6. **Submit** — Do not modify Git or remote state unless explicitly requested
+   read-only subagent review when subagents are available, following
+   [Independent read-only review](#independent-read-only-review).
+7. **Submit** — Do not modify Git or remote state unless explicitly requested
    by the human.
+
+## Independent read-only review
+
+For substantive changes, the implementing agent asks a subagent to review the
+change when subagents are available. The reviewer acts read-only: it does not
+edit files or run Git write operations, and it reviews the request, the
+repository instructions, and the diff that actually changed rather than
+unrelated work in the tree. It independently looks for correctness defects,
+regressions, missing edge cases, and inadequate tests instead of assuming the
+implementation or its rationale is correct, and it reports only actionable
+findings with severity, location, and reasoning, or states explicitly that it
+found none.
+
+The implementing agent remains responsible for the result: validate each
+finding against the code, fix confirmed issues rather than applying
+suggestions mechanically, and rerun the affected checks. One pass is normally
+enough; request another only when fixes address high-severity findings or
+materially change the design. A review supplements, but does not replace, the
+required build and test checks. When the human asks the agent itself to review
+a change, the agent is the reviewer and reports in the same way.
 
 ## Commands
 
@@ -141,7 +175,9 @@ changed behavior and document their command here.
   code that requires exceptions, `dynamic_cast`, or RTTI unless the build
   configuration is intentionally changed and justified.
 - Prefer LLVM support types and error facilities where they integrate with
-  LLVM/CIR APIs; do not add parallel abstractions without a concrete need.
+  LLVM/CIR APIs; do not reimplement an existing LLVM/CIR abstraction. Whether
+  duplicated code should become a shared helper is governed by the
+  deduplication rule in [Mandatory rules](#mandatory-rules).
 - Use lambdas only as anonymous, local callbacks at their call site. If a
   callable needs a name or reuse, define a regular function instead of storing
   a lambda in a named variable.
@@ -166,5 +202,10 @@ changed behavior and document their command here.
 
 Use `<type>(<scope>): <subject>` with an optional explanatory body and
 trailers. See [CONTRIBUTING.md](./CONTRIBUTING.md#commit-messages) and
-[`.gitmessage`](./.gitmessage). Never create a commit unless the human
-explicitly requests it.
+[`.gitmessage`](./.gitmessage).
+
+When a commit contains material produced by a model, follow the
+[attribution policy](./CONTRIBUTING.md#attribution) and add the applicable
+`Assisted-by` trailer. Omit model-attribution trailers when the committed
+material was written entirely by humans. This does not relax the rule above:
+never create a commit unless the human explicitly requests it.
